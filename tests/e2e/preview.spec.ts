@@ -3,21 +3,21 @@ import { expect, test } from "@playwright/test";
 
 test("workspace switch clears application data and owner-only controls", async ({ page }) => {
   await page.goto("/preview");
-  await expect(page.getByRole("heading", { name: "Her şey bir arada." })).toBeVisible();
-  await expect(page.getByRole("button", { name: "Uygulama bağla", exact: true })).toBeVisible();
-  await page.getByLabel("Çalışma alanı", { exact: true }).selectOption("ada");
-  await expect(page.getByText("Tasarım Günlüğü", { exact: true })).toBeVisible();
-  await expect(page.getByText("İçerik Stüdyosu", { exact: true })).toHaveCount(0);
-  await expect(page.getByRole("button", { name: "Uygulama bağla", exact: true })).toHaveCount(0);
+  await expect(page.getByRole("heading", { name: "Everything in one place." })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Connect application", exact: true })).toBeVisible();
+  await page.getByLabel("Workspace", { exact: true }).selectOption("ada");
+  await expect(page.getByText("Design Journal", { exact: true })).toBeVisible();
+  await expect(page.getByText("Content Studio", { exact: true })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Connect application", exact: true })).toHaveCount(0);
 });
 
 test("application search, empty state and dialog work with keyboard", async ({ page }) => {
   await page.goto("/preview");
-  await page.getByRole("button", { name: "Uygulamalar", exact: false }).first().click();
-  await page.getByRole("textbox", { name: "Uygulamalarda ara" }).fill("bulunamayan");
-  await expect(page.getByRole("heading", { name: "Uygulama bulunamadı" })).toBeVisible();
-  await page.getByRole("button", { name: "Aramayı temizle" }).click();
-  await page.getByRole("button", { name: "İçerik Stüdyosu ayrıntıları" }).click();
+  await page.getByRole("button", { name: "Applications", exact: false }).first().click();
+  await page.getByRole("textbox", { name: "Search applications" }).fill("missing-application");
+  await expect(page.getByRole("heading", { name: "No applications found" })).toBeVisible();
+  await page.getByRole("button", { name: "Clear search" }).click();
+  await page.getByRole("button", { name: "Content Studio details" }).click();
   await expect(page.getByRole("dialog")).toBeVisible();
   await page.keyboard.press("Escape");
   await expect(page.getByRole("dialog")).not.toBeVisible();
@@ -29,10 +29,10 @@ test("sample edit is explicitly local and never posts to an application", async 
     if (["POST", "PUT", "PATCH", "DELETE"].includes(request.method())) writes.push(request.url());
   });
   await page.goto("/preview");
-  await page.getByRole("button", { name: "İçerik Stüdyosu ayrıntıları" }).click();
-  await page.getByLabel("Örnek içerik başlığı").fill("Deneme başlığı");
-  await page.getByRole("button", { name: "Örnek başlığı güncelle" }).click();
-  await expect(page.getByRole("status")).toContainText("Harici servise istek gönderilmedi");
+  await page.getByRole("button", { name: "Content Studio details" }).click();
+  await page.getByLabel("Sample article title").fill("Updated sample title");
+  await page.getByRole("button", { name: "Update sample title" }).click();
+  await expect(page.getByRole("status")).toContainText("No request was sent to an external service");
   expect(writes).toEqual([]);
 });
 
@@ -40,7 +40,7 @@ test("theme persists and core screens have no WCAG AA violations", async ({ page
   await page.goto("/preview");
   const light = await new AxeBuilder({ page }).withTags(["wcag2a", "wcag2aa", "wcag21aa"]).analyze();
   expect(light.violations).toEqual([]);
-  await page.getByRole("button", { name: "Koyu temaya geç" }).click();
+  await page.getByRole("button", { name: "Switch to dark theme" }).click();
   await page.reload();
   await expect(page.locator(".panel")).toHaveAttribute("data-theme", "dark");
   const dark = await new AxeBuilder({ page }).withTags(["wcag2a", "wcag2aa", "wcag21aa"]).analyze();
@@ -51,9 +51,9 @@ test("mobile navigation has no page overflow", async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto("/preview");
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
-  await page.getByRole("button", { name: "Menüyü aç" }).click();
-  await page.getByRole("button", { name: "Ekip üyeleri" }).click();
-  await expect(page.getByRole("heading", { name: "Ekip üyeleri" })).toBeVisible();
+  await page.getByRole("button", { name: "Open menu" }).click();
+  await page.getByRole("button", { name: "Team members" }).click();
+  await expect(page.getByRole("heading", { name: "Team members" })).toBeVisible();
   await expect(page.getByText("deniz@example.test")).toBeVisible();
 });
 

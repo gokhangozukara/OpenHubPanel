@@ -32,15 +32,16 @@ import {
   X,
 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
+import { LanguageSelector, useLocale } from "@/i18n/provider";
 import { activities, applications, members, type PreviewApplication, workspaces } from "./fixtures";
 
 const sections = [
-  { id: "overview", name: "Genel bakış", icon: LayoutDashboard },
-  { id: "applications", name: "Uygulamalar", icon: Blocks },
-  { id: "team", name: "Ekip üyeleri", icon: Users },
-  { id: "activity", name: "İşlem kaydı", icon: Activity },
-  { id: "security", name: "Güvenlik", icon: ShieldCheck },
-  { id: "settings", name: "Ayarlar", icon: Settings2 },
+  { id: "overview", name: "Overview", icon: LayoutDashboard },
+  { id: "applications", name: "Applications", icon: Blocks },
+  { id: "team", name: "Team members", icon: Users },
+  { id: "activity", name: "Activity log", icon: Activity },
+  { id: "security", name: "Security", icon: ShieldCheck },
+  { id: "settings", name: "Settings", icon: Settings2 },
 ] as const;
 type Section = (typeof sections)[number]["id"];
 type Modal =
@@ -51,10 +52,11 @@ type Modal =
 type Theme = "light" | "dark" | "system";
 
 function Status({ connected }: { connected: boolean }) {
+  const { t } = useLocale();
   return (
     <span className={`status ${connected ? "success" : "waiting"}`}>
       <span className="status-dot" />
-      {connected ? "Bağlı" : "Kurulum bekliyor"}
+      {connected ? t("Connected") : t("Setup pending")}
     </span>
   );
 }
@@ -70,18 +72,19 @@ function ApplicationTable({
   onOpen: (app: PreviewApplication) => void;
   onClear: () => void;
 }) {
+  const { t } = useLocale();
   return (
     <div className="table-scroll">
       <table className="app-table">
-        <caption className="sr-only">{workspaceName} örnek uygulamaları</caption>
+        <caption className="sr-only">{t("Sample applications in {name}", { name: workspaceName })}</caption>
         <thead>
           <tr>
-            <th scope="col">Uygulama</th>
-            <th scope="col">Durum</th>
-            <th scope="col">Erişim</th>
-            <th scope="col">Son kontrol</th>
+            <th scope="col">{t("Application")}</th>
+            <th scope="col">{t("Status")}</th>
+            <th scope="col">{t("Access")}</th>
+            <th scope="col">{t("Last checked")}</th>
             <th scope="col">
-              <span className="sr-only">Ayrıntı</span>
+              <span className="sr-only">{t("Details")}</span>
             </th>
           </tr>
         </thead>
@@ -92,21 +95,21 @@ function ApplicationTable({
                 <button className="app-name-button" type="button" onClick={() => onOpen(app)}>
                   <span className={`app-icon ${app.color}`}>{app.initials}</span>
                   <span>
-                    <strong>{app.name}</strong>
-                    <span className="table-subtitle">{app.category}</span>
+                    <strong>{t(app.name)}</strong>
+                    <span className="table-subtitle">{t(app.category)}</span>
                   </span>
                 </button>
               </td>
               <td>
                 <Status connected={app.status === "connected"} />
               </td>
-              <td className="muted">{app.permission}</td>
-              <td className="muted">{app.updated}</td>
+              <td className="muted">{t(app.permission)}</td>
+              <td className="muted">{t(app.updated)}</td>
               <td>
                 <button
                   type="button"
                   className="icon-button"
-                  aria-label={`${app.name} ayrıntıları`}
+                  aria-label={t("{name} details", { name: t(app.name) })}
                   onClick={() => onOpen(app)}
                 >
                   <ArrowUpRight size={17} />
@@ -119,10 +122,10 @@ function ApplicationTable({
       {apps.length === 0 && (
         <div className="empty-state">
           <Search size={28} />
-          <h3>Uygulama bulunamadı</h3>
-          <p>Başka bir isimle aramayı dene.</p>
+          <h3>{t("No applications found")}</h3>
+          <p>{t("Try searching for another name.")}</p>
           <button type="button" className="button secondary" onClick={onClear}>
-            Aramayı temizle
+            {t("Clear search")}
           </button>
         </div>
       )}
@@ -131,6 +134,7 @@ function ApplicationTable({
 }
 
 function ActivityList({ events }: { events: (typeof activities)[number][] }) {
+  const { t } = useLocale();
   return (
     <ol className="activity-list">
       {events.map((event) => (
@@ -145,10 +149,10 @@ function ActivityList({ events }: { events: (typeof activities)[number][] }) {
             )}
           </span>
           <div>
-            <strong>{event.title}</strong>
-            <p>{event.detail}</p>
+            <strong>{t(event.title)}</strong>
+            <p>{t(event.detail)}</p>
           </div>
-          <time>{event.time}</time>
+          <time>{t(event.time)}</time>
         </li>
       ))}
     </ol>
@@ -156,6 +160,7 @@ function ActivityList({ events }: { events: (typeof activities)[number][] }) {
 }
 
 export function PreviewPanel() {
+  const { t, locale } = useLocale();
   const [section, setSection] = useState<Section>("overview");
   const [workspace, setWorkspace] = useState("atlas");
   const [query, setQuery] = useState("");
@@ -163,12 +168,12 @@ export function PreviewPanel() {
   const [mobileOpen, setMobileOpen] = useState(false);
   const [modal, setModal] = useState<Modal>(null);
   const [notice, setNotice] = useState("");
-  const [exampleTitle, setExampleTitle] = useState("Yeni bir başlangıç: ekibimizden haberler");
+  const [exampleTitle, setExampleTitle] = useState<string | null>(null);
   const dialog = useRef<HTMLDialogElement>(null);
   const currentWorkspace = workspaces.find((item) => item.id === workspace) ?? workspaces[0];
   const apps = applications.filter((app) => app.workspace === workspace);
   const filteredApps = apps.filter((app) =>
-    `${app.name} ${app.category}`.toLocaleLowerCase("tr").includes(query.toLocaleLowerCase("tr")),
+    `${t(app.name)} ${t(app.category)}`.toLocaleLowerCase(locale).includes(query.toLocaleLowerCase(locale)),
   );
   const team = members.filter((member) => member.workspace === workspace);
   const events = activities.filter((event) => event.workspace === workspace);
@@ -204,7 +209,7 @@ export function PreviewPanel() {
     setQuery("");
     setModal(null);
     setNotice("");
-    setExampleTitle("Yeni bir başlangıç: ekibimizden haberler");
+    setExampleTitle(null);
     setSection("overview");
     setMobileOpen(false);
   }
@@ -220,17 +225,17 @@ export function PreviewPanel() {
   return (
     <div className="panel" data-theme={theme}>
       <a href="#main-content" className="skip-link">
-        İçeriğe geç
+        {t("Skip to content")}
       </a>
       {mobileOpen && (
         <button
           type="button"
           className="sidebar-backdrop"
-          aria-label="Menüyü kapat"
+          aria-label={t("Close menu")}
           onClick={() => setMobileOpen(false)}
         />
       )}
-      <aside className={`sidebar ${mobileOpen ? "is-open" : ""}`} aria-label="Ana menü">
+      <aside className={`sidebar ${mobileOpen ? "is-open" : ""}`} aria-label={t("Main menu")}>
         <a href="/" className="brand">
           <span className="brand-symbol">
             <Blocks size={21} aria-hidden="true" />
@@ -242,7 +247,7 @@ export function PreviewPanel() {
         <div className="workspace-control">
           <span className="workspace-avatar">{currentWorkspace.initials}</span>
           <div>
-            <label htmlFor="workspace">Çalışma alanı</label>
+            <label htmlFor="workspace">{t("Workspace")}</label>
             <select
               id="workspace"
               value={workspace}
@@ -250,14 +255,14 @@ export function PreviewPanel() {
             >
               {workspaces.map((item) => (
                 <option value={item.id} key={item.id}>
-                  {item.name}
+                  {t(item.name)}
                 </option>
               ))}
             </select>
           </div>
           <ChevronDown size={15} aria-hidden="true" />
         </div>
-        <p className="nav-heading">YÖNETİM</p>
+        <p className="nav-heading">{t("MANAGE")}</p>
         <nav>
           {sections.map(({ id, name, icon: Icon }) => (
             <button
@@ -268,7 +273,7 @@ export function PreviewPanel() {
               aria-current={section === id ? "page" : undefined}
             >
               <Icon size={18} aria-hidden="true" />
-              <span>{name}</span>
+              <span>{t(name)}</span>
               {id === "applications" && <span className="nav-count">{apps.length}</span>}
             </button>
           ))}
@@ -278,18 +283,18 @@ export function PreviewPanel() {
             <span className="help-card-icon">
               <Sparkles size={18} aria-hidden="true" />
             </span>
-            <strong>Birlikte daha iyi.</strong>
+            <strong>{t("Better together.")}</strong>
             <p>
-              Uygulamanı bağla, işini kolaylaştır.
+              {t("Connect your app. Make work easier.")}
               <br />
-              Açık kaynakla birlikte büyüyelim.
+              {t("Help shape an open-source project.")}
             </p>
             <a
               href="https://github.com/gokhangozukara/OpenHubPanel/blob/main/CONTRIBUTING.md"
               target="_blank"
               rel="noreferrer"
             >
-              Projeye katkıda bulun <ArrowUpRight size={14} aria-hidden="true" />
+              {t("Contribute")} <ArrowUpRight size={14} aria-hidden="true" />
             </a>
           </div>
           <a
@@ -298,14 +303,14 @@ export function PreviewPanel() {
             target="_blank"
             rel="noreferrer"
           >
-            <BookOpen size={17} aria-hidden="true" /> Dokümantasyon{" "}
+            <BookOpen size={17} aria-hidden="true" /> {t("Documentation")}{" "}
             <ExternalLink size={13} aria-hidden="true" />
           </a>
           <div className="sidebar-profile">
-            <span className="avatar teal">DY</span>
+            <span className="avatar teal">DA</span>
             <div>
-              <strong>Demo Yönetici</strong>
-              <span>{isOwner ? "Çalışma alanı sahibi" : "Görüntüleyici"}</span>
+              <strong>{t("Demo Admin")}</strong>
+              <span>{isOwner ? t("Workspace owner") : t("Viewer")}</span>
             </div>
             <span className="online-dot" aria-hidden="true" />
           </div>
@@ -318,32 +323,33 @@ export function PreviewPanel() {
             <button
               className="icon-button mobile-toggle"
               type="button"
-              aria-label="Menüyü aç"
+              aria-label={t("Open menu")}
               aria-expanded={mobileOpen}
               onClick={() => setMobileOpen(!mobileOpen)}
             >
               <Menu size={21} />
             </button>
             <FolderKanban size={17} aria-hidden="true" />
-            <span>{currentWorkspace.name}</span>
+            <span>{t(currentWorkspace.name)}</span>
             <span className="breadcrumb-divider">/</span>
-            <strong>{sections.find((item) => item.id === section)?.name}</strong>
+            <strong>{t(sections.find((item) => item.id === section)?.name ?? "")}</strong>
           </div>
           <div className="topbar-actions">
+            <LanguageSelector />
             <span className="preview-label">
               <span />
-              Yerel önizleme
+              {t("Local preview")}
             </span>
             <button
               className="icon-button"
               type="button"
-              aria-label={theme === "dark" ? "Açık temaya geç" : "Koyu temaya geç"}
+              aria-label={theme === "dark" ? t("Switch to light theme") : t("Switch to dark theme")}
               onClick={() => changeTheme(theme === "dark" ? "light" : "dark")}
             >
               {theme === "dark" ? <Sun size={18} /> : <Moon size={18} />}
             </button>
-            <span className="avatar small-avatar teal" title="Demo Yönetici">
-              DY
+            <span className="avatar small-avatar teal" title={t("Demo Admin")}>
+              DA
             </span>
           </div>
         </header>
@@ -351,39 +357,41 @@ export function PreviewPanel() {
           <div className="preview-banner">
             <CircleHelp size={15} aria-hidden="true" />
             <span>
-              Örnek verilerle tasarım önizlemesi. İşlemler bu ekranda kalır; canlı uygulamaları etkilemez.
+              {t(
+                "Design preview with sample data. Changes stay on this screen and never reach live applications.",
+              )}
             </span>
           </div>
           <div className="page-heading">
             <div>
-              <p className="eyebrow">{section === "overview" ? "ÇALIŞMA ALANIN" : "YÖNETİM MERKEZİ"}</p>
+              <p className="eyebrow">{section === "overview" ? t("YOUR WORKSPACE") : t("MANAGEMENT HUB")}</p>
               <h1>
                 {section === "overview"
-                  ? "Her şey bir arada."
-                  : sections.find((item) => item.id === section)?.name}
+                  ? t("Everything in one place.")
+                  : t(sections.find((item) => item.id === section)?.name ?? "")}
               </h1>
               <p>
                 {section === "overview"
-                  ? "Uygulamaların, ekibin ve günlük işlerin. Tek bir merkezde."
+                  ? t("Your apps, your team, and your daily work. One place to manage them.")
                   : section === "applications"
-                    ? "Bağlı projelerini ve erişim durumlarını tek yerden takip et."
+                    ? t("Keep track of your connected projects and their access.")
                     : section === "team"
-                      ? "Doğru kişiye, doğru uygulama için doğru erişim."
+                      ? t("Give each person the access they need.")
                       : section === "activity"
-                        ? "Çalışma alanında kimin ne yaptığını takip et."
+                        ? t("See who did what in this workspace.")
                         : section === "security"
-                          ? "Hesabın ve çalışma alanın için güvenlik temeli."
-                          : "Çalışma alanını ve görünüm tercihlerini düzenle."}
+                          ? t("Security for your account and workspace.")
+                          : t("Set up your workspace and choose how it looks.")}
               </p>
             </div>
             {isOwner && (section === "overview" || section === "applications") && (
               <button type="button" className="button primary" onClick={() => setModal({ kind: "connect" })}>
-                <Plus size={17} /> Uygulama bağla
+                <Plus size={17} /> {t("Connect application")}
               </button>
             )}
             {isOwner && section === "team" && (
               <button type="button" className="button primary" onClick={() => setModal({ kind: "invite" })}>
-                <Plus size={17} /> Üye davet et
+                <Plus size={17} /> {t("Invite member")}
               </button>
             )}
           </div>
@@ -393,43 +401,43 @@ export function PreviewPanel() {
               <div className="stats-grid">
                 {[
                   {
-                    label: "Toplam uygulama",
+                    label: "Total applications",
                     value: apps.length,
                     icon: Blocks,
-                    foot: "Bu çalışma alanında",
+                    foot: "In this workspace",
                     color: "teal",
                   },
                   {
-                    label: "Bağlı uygulama",
+                    label: "Connected applications",
                     value: connectedCount,
                     icon: Link2,
-                    foot: "Örnek bağlantı durumları",
+                    foot: "Sample connection statuses",
                     color: "blue",
                   },
                   {
-                    label: "Ekip üyesi",
+                    label: "Team members",
                     value: team.length,
                     icon: Users,
-                    foot: "Birlikte çalışan kişiler",
+                    foot: "People working together",
                     color: "violet",
                   },
                   {
-                    label: "Bekleyen kurulum",
+                    label: "Pending setup",
                     value: apps.length - connectedCount,
                     icon: Clock3,
-                    foot: "Bağlanmaya hazır projeler",
+                    foot: "Projects ready to connect",
                     color: "amber",
                   },
                 ].map(({ label, value, icon: Icon, foot, color }) => (
                   <article className="stat-card" key={label}>
                     <div className="stat-top">
-                      <span>{label}</span>
+                      <span>{t(label)}</span>
                       <span className={`stat-icon ${color}`}>
                         <Icon size={18} aria-hidden="true" />
                       </span>
                     </div>
                     <strong className="stat-value">{value.toString().padStart(2, "0")}</strong>
-                    <p>{foot}</p>
+                    <p>{t(foot)}</p>
                   </article>
                 ))}
               </div>
@@ -437,16 +445,16 @@ export function PreviewPanel() {
                 <section className="card applications-card">
                   <div className="card-heading">
                     <div>
-                      <h2>Uygulamaların</h2>
-                      <p>Projelerin arasında kolayca geçiş yap.</p>
+                      <h2>{t("Your applications")}</h2>
+                      <p>{t("Move between your projects with ease.")}</p>
                     </div>
                     <button type="button" className="text-button" onClick={() => navigate("applications")}>
-                      Tümünü gör <ArrowRight size={15} />
+                      {t("View all")} <ArrowRight size={15} />
                     </button>
                   </div>
                   <ApplicationTable
                     apps={filteredApps}
-                    workspaceName={currentWorkspace.name}
+                    workspaceName={t(currentWorkspace.name)}
                     onOpen={(app) => setModal({ kind: "application", app })}
                     onClear={() => setQuery("")}
                   />
@@ -454,8 +462,8 @@ export function PreviewPanel() {
                 <section className="card checklist-card">
                   <div className="card-heading">
                     <div>
-                      <h2>İlk adımlar</h2>
-                      <p>Çalışma alanını hazırla.</p>
+                      <h2>{t("Getting started")}</h2>
+                      <p>{t("Get your workspace ready.")}</p>
                     </div>
                     <span className="checklist-progress">2 / 3</span>
                   </div>
@@ -468,8 +476,8 @@ export function PreviewPanel() {
                         <Check size={14} />
                       </span>
                       <div>
-                        <strong>Çalışma alanını oluştur</strong>
-                        <p>Ekibin için ortak bir yer.</p>
+                        <strong>{t("Create your workspace")}</strong>
+                        <p>{t("A shared home for your team.")}</p>
                       </div>
                     </li>
                     <li>
@@ -477,15 +485,15 @@ export function PreviewPanel() {
                         <Check size={14} />
                       </span>
                       <div>
-                        <strong>İlk uygulamanı bağla</strong>
-                        <p>Projelerini tek yerde topla.</p>
+                        <strong>{t("Connect your first application")}</strong>
+                        <p>{t("Bring your projects together.")}</p>
                       </div>
                     </li>
                     <li>
                       <span className="step-pending">3</span>
                       <div>
-                        <strong>Ekibini davet et</strong>
-                        <p>Birlikte yönetmeye başlayın.</p>
+                        <strong>{t("Invite your team")}</strong>
+                        <p>{t("Start managing things together.")}</p>
                       </div>
                     </li>
                   </ol>
@@ -494,21 +502,21 @@ export function PreviewPanel() {
                     className="button secondary full-width"
                     onClick={() => (isOwner ? setModal({ kind: "invite" }) : navigate("team"))}
                   >
-                    {isOwner ? "Davet akışını incele" : "Ekibi görüntüle"}
+                    {isOwner ? t("Preview an invitation") : t("View team")}
                     <ArrowRight size={15} />
                   </button>
-                  <p className="small muted sample-note">Örnek kurulum adımları</p>
+                  <p className="small muted sample-note">{t("Sample setup steps")}</p>
                 </section>
               </div>
               <div className="overview-bottom">
                 <section className="card">
                   <div className="card-heading">
                     <div>
-                      <h2>Son işlemler</h2>
-                      <p>Ekibinden son gelişmeler.</p>
+                      <h2>{t("Recent activity")}</h2>
+                      <p>{t("The latest from your team.")}</p>
                     </div>
                     <button type="button" className="text-button" onClick={() => navigate("activity")}>
-                      İşlem kaydı <ArrowRight size={15} />
+                      {t("Activity log")} <ArrowRight size={15} />
                     </button>
                   </div>
                   <ActivityList events={events} />
@@ -516,20 +524,20 @@ export function PreviewPanel() {
                 <section className="community-card">
                   <div className="community-mark">
                     <Blocks size={27} aria-hidden="true" />
-                    <span>OPEN SOURCE · MIT</span>
+                    <span>{t("Open source · MIT")}</span>
                   </div>
                   <h2>
-                    Bir merkez.
+                    {t("One hub.")}
                     <br />
-                    Daha az karmaşa.
+                    {t("Less to juggle.")}
                   </h2>
                   <p>
-                    Her proje için yeniden panel kurma.
+                    {t("Stop rebuilding a panel for every project.")}
                     <br />
-                    Uygulamalarını bağla, işine odaklan.
+                    {t("Connect your apps and get back to work.")}
                   </p>
                   <a href="https://github.com/gokhangozukara/OpenHubPanel" target="_blank" rel="noreferrer">
-                    OpenHubPanel’i keşfet <ArrowUpRight size={16} aria-hidden="true" />
+                    {t("Explore OpenHubPanel")} <ArrowUpRight size={16} aria-hidden="true" />
                   </a>
                 </section>
               </div>
@@ -540,7 +548,7 @@ export function PreviewPanel() {
             <section className="card">
               <div className="card-heading">
                 <div className="inline-count">
-                  <h2>Tüm uygulamalar</h2>
+                  <h2>{t("All applications")}</h2>
                   <span className="count-badge">{apps.length}</span>
                 </div>
                 <label className="search-field">
@@ -548,14 +556,14 @@ export function PreviewPanel() {
                   <input
                     value={query}
                     onChange={(event) => setQuery(event.target.value)}
-                    placeholder="Uygulamalarda ara…"
-                    aria-label="Uygulamalarda ara"
+                    placeholder={t("Search applications…")}
+                    aria-label={t("Search applications")}
                   />
                 </label>
               </div>
               <ApplicationTable
                 apps={filteredApps}
-                workspaceName={currentWorkspace.name}
+                workspaceName={t(currentWorkspace.name)}
                 onOpen={(app) => setModal({ kind: "application", app })}
                 onClear={() => setQuery("")}
               />
@@ -566,26 +574,28 @@ export function PreviewPanel() {
             <section className="card">
               <div className="card-heading">
                 <div>
-                  <h2>Çalışma alanı üyeleri</h2>
-                  <p>Bu alana erişebilen örnek hesaplar.</p>
+                  <h2>{t("Workspace members")}</h2>
+                  <p>{t("Sample accounts with access to this workspace.")}</p>
                 </div>
-                <span className="count-badge">{team.length} üye</span>
+                <span className="count-badge">
+                  {t(team.length === 1 ? "{count} member" : "{count} members", { count: team.length })}
+                </span>
               </div>
               <div className="member-list">
                 {team.map((member) => (
                   <div className="member-row" key={member.email}>
                     <span className={`avatar ${member.color}`}>{member.initials}</span>
                     <div>
-                      <strong>{member.name}</strong>
+                      <strong>{t(member.name)}</strong>
                       <p>{member.email}</p>
                     </div>
-                    <span className="role-badge">{member.role}</span>
+                    <span className="role-badge">{t(member.role)}</span>
                   </div>
                 ))}
               </div>
               <div className="card-footer">
                 <ShieldCheck size={15} aria-hidden="true" />
-                Üyelikler ve roller her çalışma alanında ayrı tutulur.
+                {t("Memberships and roles are separate for each workspace.")}
               </div>
             </section>
           )}
@@ -594,8 +604,8 @@ export function PreviewPanel() {
             <section className="card">
               <div className="card-heading">
                 <div>
-                  <h2>Çalışma alanı geçmişi</h2>
-                  <p>Örnek işlem kayıtları · Gerçek audit bağlantısı henüz etkin değil.</p>
+                  <h2>{t("Workspace history")}</h2>
+                  <p>{t("Sample events · Live audit logging is not connected yet.")}</p>
                 </div>
                 <Activity size={19} aria-hidden="true" />
               </div>
@@ -608,32 +618,32 @@ export function PreviewPanel() {
               {[
                 {
                   icon: KeyRound,
-                  title: "İki adımlı doğrulama",
-                  text: "Parolaya ek olarak authenticator kodu. Zorunlu TOTP akışı geliştirme aşamasında.",
+                  title: "Two-factor authentication",
+                  text: "An authenticator code alongside your password. Required TOTP is still being built.",
                 },
                 {
                   icon: Monitor,
-                  title: "Oturum yönetimi",
-                  text: "Aktif cihazları görme ve erişimi iptal etme. Gerçek oturum servisi henüz etkin değil.",
+                  title: "Session management",
+                  text: "Review active devices and revoke access. The session service is not enabled yet.",
                 },
                 {
                   icon: LockKeyhole,
-                  title: "Müşteri alanı izolasyonu",
-                  text: "Üyelik, uygulama ve veri erişimi çalışma alanına bağlı. İlk veritabanı sınırları otomatik testlerle doğrulanır.",
+                  title: "Workspace isolation",
+                  text: "Memberships, applications, and data belong to a workspace. Initial database boundaries have automated tests.",
                 },
                 {
                   icon: CheckCheck,
-                  title: "Denetim kaydı",
-                  text: "Yönetim değişikliği ve işlem kaydı birlikte yazılacak. Gerçek yönetim işlemleri henüz açılmadı.",
+                  title: "Audit trail",
+                  text: "Management changes and their audit events will be saved together. Live management is not enabled yet.",
                 },
               ].map(({ icon: Icon, title, text }) => (
                 <section className="card security-card" key={title}>
                   <span className="stat-icon teal">
                     <Icon size={20} aria-hidden="true" />
                   </span>
-                  <h2>{title}</h2>
-                  <p>{text}</p>
-                  <span className="role-badge">Geliştirme aşamasında</span>
+                  <h2>{t(title)}</h2>
+                  <p>{t(text)}</p>
+                  <span className="role-badge">{t("In development")}</span>
                 </section>
               ))}
             </div>
@@ -642,13 +652,13 @@ export function PreviewPanel() {
           {section === "settings" && (
             <div className="settings-grid">
               <section className="card settings-card">
-                <h2>Görünüm</h2>
-                <p>Paneli rahat çalıştığın temayla kullan.</p>
+                <h2>{t("Appearance")}</h2>
+                <p>{t("Choose the theme that suits you.")}</p>
                 <div className="theme-options">
                   {[
-                    { id: "light", name: "Açık", icon: Sun },
-                    { id: "dark", name: "Koyu", icon: Moon },
-                    { id: "system", name: "Sistem", icon: Monitor },
+                    { id: "light", name: "Light", icon: Sun },
+                    { id: "dark", name: "Dark", icon: Moon },
+                    { id: "system", name: "System", icon: Monitor },
                   ].map(({ id, name, icon: Icon }) => (
                     <button
                       type="button"
@@ -658,26 +668,26 @@ export function PreviewPanel() {
                       onClick={() => changeTheme(id as Theme)}
                     >
                       <Icon size={22} />
-                      <span>{name}</span>
+                      <span>{t(name)}</span>
                     </button>
                   ))}
                 </div>
               </section>
               <section className="card settings-card">
-                <h2>Çalışma alanı</h2>
-                <p>{currentWorkspace.description}</p>
+                <h2>{t("Workspace")}</h2>
+                <p>{t(currentWorkspace.description)}</p>
                 <dl className="details-list">
                   <div>
-                    <dt>Ad</dt>
-                    <dd>{currentWorkspace.name}</dd>
+                    <dt>{t("Name")}</dt>
+                    <dd>{t(currentWorkspace.name)}</dd>
                   </div>
                   <div>
-                    <dt>Rolün</dt>
-                    <dd>{isOwner ? "Çalışma alanı sahibi" : "Görüntüleyici"}</dd>
+                    <dt>{t("Your role")}</dt>
+                    <dd>{isOwner ? t("Workspace owner") : t("Viewer")}</dd>
                   </div>
                   <div>
-                    <dt>Ortam</dt>
-                    <dd>Yerel tasarım önizlemesi</dd>
+                    <dt>{t("Environment")}</dt>
+                    <dd>{t("Local design preview")}</dd>
                   </div>
                 </dl>
               </section>
@@ -685,7 +695,7 @@ export function PreviewPanel() {
           )}
           <footer className="page-footer">
             <span>
-              OpenHubPanel <span className="version-label">v0.1 · geliştirme</span>
+              OpenHubPanel <span className="version-label">{t("v0.1 · development")}</span>
             </span>
             <span>All in one panel.</span>
           </footer>
@@ -702,17 +712,17 @@ export function PreviewPanel() {
         <div className="dialog-heading">
           <h2 id="dialog-title">
             {modal?.kind === "connect"
-              ? "Uygulama bağla"
+              ? t("Connect application")
               : modal?.kind === "invite"
-                ? "Ekip üyesi davet et"
+                ? t("Invite a team member")
                 : modal?.kind === "application"
-                  ? modal.app.name
-                  : "Ayrıntılar"}
+                  ? t(modal.app.name)
+                  : t("Details")}
           </h2>
           <button
             className="icon-button"
             type="button"
-            aria-label="Pencereyi kapat"
+            aria-label={t("Close dialog")}
             onClick={() => setModal(null)}
           >
             <X size={19} />
@@ -720,21 +730,25 @@ export function PreviewPanel() {
         </div>
         {modal?.kind === "application" ? (
           <>
-            <p className="muted">{modal.app.description}</p>
+            <p className="muted">{t(modal.app.description)}</p>
             <dl className="details-list">
               <div>
-                <dt>Bağlantı</dt>
+                <dt>{t("Connection")}</dt>
                 <dd>
                   <Status connected={modal.app.status === "connected"} />
                 </dd>
               </div>
               <div>
-                <dt>Erişim</dt>
-                <dd>{modal.app.permission}</dd>
+                <dt>{t("Access")}</dt>
+                <dd>{t(modal.app.permission)}</dd>
               </div>
               <div>
-                <dt>Kaynak</dt>
-                <dd>{modal.app.resources} örnek kaynak</dd>
+                <dt>{t("Resources")}</dt>
+                <dd>
+                  {t(modal.app.resources === 1 ? "{count} sample resource" : "{count} sample resources", {
+                    count: modal.app.resources,
+                  })}
+                </dd>
               </div>
             </dl>
             {modal.app.id === "content" && (
@@ -742,21 +756,23 @@ export function PreviewPanel() {
                 className="panel-form"
                 onSubmit={(event) => {
                   event.preventDefault();
-                  setNotice("Örnek başlık bu önizlemede güncellendi. Harici servise istek gönderilmedi.");
+                  setNotice(
+                    "Sample title updated in this preview. No request was sent to an external service.",
+                  );
                   setModal(null);
                 }}
               >
-                <label htmlFor="sample-title">Örnek içerik başlığı</label>
+                <label htmlFor="sample-title">{t("Sample article title")}</label>
                 <input
                   id="sample-title"
-                  value={exampleTitle}
+                  value={exampleTitle ?? t("A fresh start: news from our team")}
                   onChange={(event) => setExampleTitle(event.target.value)}
                   maxLength={180}
                   required
                 />
-                <p className="small muted">Bu form yalnızca arayüz etkileşimini gösterir.</p>
+                <p className="small muted">{t("This form only demonstrates the interface.")}</p>
                 <button type="submit" className="button primary">
-                  Örnek başlığı güncelle
+                  {t("Update sample title")}
                 </button>
               </form>
             )}
@@ -769,49 +785,53 @@ export function PreviewPanel() {
                 event.preventDefault();
                 setNotice(
                   modal.kind === "connect"
-                    ? "Bağlantı formu önizlemesi tamamlandı. Gerçek API bağlantısı kurulmadı."
-                    : "Davet formu önizlemesi tamamlandı. E-posta gönderilmedi.",
+                    ? "Connection preview complete. No live API connection was created."
+                    : "Invitation preview complete. No email was sent.",
                 );
                 setModal(null);
               }}
             >
               <p className="muted">
                 {modal.kind === "connect"
-                  ? "Projeni bu çalışma alanına ekle. Gerçek bağlantı servisi bir sonraki geliştirme aşamasında açılacak."
-                  : "Ekip arkadaşının erişeceği rolü seç. Bu önizlemede gerçek davet gönderilmez."}
+                  ? t(
+                      "Add a project to this workspace. Live connections are planned for a later development phase.",
+                    )
+                  : t("Choose a role for your teammate. This preview does not send invitations.")}
               </p>
               <label htmlFor="form-name">
-                {modal.kind === "connect" ? "Uygulama adı" : "E-posta adresi"}
+                {modal.kind === "connect" ? t("Application name") : t("Email address")}
               </label>
               <input
                 id="form-name"
                 name="name"
                 type={modal.kind === "invite" ? "email" : "text"}
-                placeholder={modal.kind === "invite" ? "ekip@example.test" : "Örn. Müşteri sitesi"}
+                placeholder={modal.kind === "invite" ? "team@example.test" : t("e.g. Client website")}
                 required
                 maxLength={100}
               />
-              <label htmlFor="form-role">{modal.kind === "connect" ? "Bağlantı türü" : "Erişim rolü"}</label>
+              <label htmlFor="form-role">
+                {modal.kind === "connect" ? t("Connection type") : t("Access role")}
+              </label>
               <select id="form-role" name="role">
                 {modal.kind === "connect" ? (
                   <>
-                    <option>HTTP API bağlantısı</option>
-                    <option>Panel bağlantı kartı</option>
+                    <option>{t("HTTP API connection")}</option>
+                    <option>{t("Panel link")}</option>
                   </>
                 ) : (
                   <>
-                    <option>Görüntüleyici · Yalnızca okuma</option>
-                    <option>Editör · İçerik düzenleme</option>
-                    <option>Yönetici · Ekip ve uygulamalar</option>
+                    <option>{t("Viewer · Read only")}</option>
+                    <option>{t("Editor · Edit content")}</option>
+                    <option>{t("Admin · Team and applications")}</option>
                   </>
                 )}
               </select>
               <div className="form-notice">
                 <ShieldCheck size={16} />
-                {currentWorkspace.name} · Örnek akış
+                {t("{name} · Sample flow", { name: t(currentWorkspace.name) })}
               </div>
               <button type="submit" className="button primary">
-                Önizlemeyi tamamla <ArrowRight size={16} />
+                {t("Finish preview")} <ArrowRight size={16} />
               </button>
             </form>
           )
@@ -821,11 +841,11 @@ export function PreviewPanel() {
         {notice && (
           <>
             <CircleCheck size={19} aria-hidden="true" />
-            <span>{notice}</span>
+            <span>{t(notice)}</span>
             <button
               type="button"
               className="icon-button"
-              aria-label="Bildirimi kapat"
+              aria-label={t("Dismiss notification")}
               onClick={() => setNotice("")}
             >
               <X size={16} />

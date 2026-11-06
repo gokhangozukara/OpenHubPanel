@@ -15,7 +15,7 @@ npx --yes pnpm@12.18.0 dev
 
 Open http://127.0.0.1:3000/preview. The development server binds only to loopback. The preview uses synthetic fixtures, has no authentication, sends no invitations, and makes no requests to your applications. Its editing controls change only browser memory. Never connect production data to it. The preview route returns 404 in production even if the preview environment flag is set.
 
-The theme preference is the only value saved in localStorage. Workspace switching clears preview form state. Other screens demonstrate navigation, search, dialogs, membership views, and security states; they do not represent completed backend features.
+Only theme and language preferences are saved in localStorage. The language preference also uses a non-sensitive cookie so server-rendered pages use the selected language. No authentication data is stored there. Workspace switching clears preview form state. Other screens demonstrate navigation, search, dialogs, membership views, and security states; they do not represent completed backend features.
 
 ## Validate changes
 
@@ -29,7 +29,7 @@ npx --yes pnpm@12.18.0 audit --prod --audit-level=high
 
 `test:db` starts a real, isolated PostgreSQL 18.6 process on a randomly selected loopback port. It generates credentials in memory, migrates a separate database, tests RLS through the unprivileged application login, and stops the process. Its local data stays under ignored `.local/`; no existing database is touched. Native binaries are supplied by the pinned development dependency `embedded-postgres`. Do not run it as root; CI uses a normal runner user.
 
-E2E starts an isolated Next.js development server on port 3100. Stop your OpenHubPanel dev server before running it: Next.js does not allow two dev servers for the same app output directory. Tests cover sample workspace switching, role-specific UI, search/empty state, dialog keyboard use, local-only editing, persisted theme, automated WCAG AA checks, mobile overflow, and safe health responses. Automated checks do not establish full WCAG conformance or production security.
+E2E starts an isolated Next.js development server on port 3100. Stop your OpenHubPanel dev server before running it: Next.js does not allow two dev servers for the same app output directory. Tests cover sample workspace switching, role-specific UI, search/empty state, dialog keyboard use, local-only editing, persisted theme, automated WCAG AA checks, mobile overflow, safe health responses, all three languages, language persistence, browser preference fallback, and form/workspace preservation. Automated checks do not establish full WCAG conformance or production security.
 
 ## Optional local infrastructure
 
@@ -56,3 +56,9 @@ npx --yes pnpm@12.18.0 licenses:inventory
 The source scanner checks tracked filenames and common credential formats; CI separately runs Gitleaks 8.30.0 over the full Git history with redacted output. Gitleaks release downloads are checksum verified. `.gitleaksignore` documents one exact historical finding for a deliberately invalid token in a negative CI test; no paths or credential patterns are excluded globally. The license inventory records installed package metadata; original third-party LICENSE and NOTICE files remain authoritative.
 
 The root `.gitignore` and `.dockerignore` exclude local reference panels, private deployment notes, runtime env files, local PostgreSQL data, test traces, and credentials. Publish only reviewed Git contents; never ZIP the entire research directory.
+
+## Interface translations
+
+The interface supports English (`en`), Turkish (`tr`), and German (`de`). Catalogs live in `apps/web/src/i18n/locales/`. Keep message keys and all implementation names/comments in English. Add each message to all three catalogs, including accessible labels, errors, and notices. Use named placeholders for complete messages; never translate user-entered content.
+
+The selector remembers the choice with a one-year cosmetic cookie and optional localStorage. Without a selection, supported browser preferences apply; English is the fallback. The document language follows the selection. A blocked storage API must not prevent switching. Translation tests verify catalog/placeholder parity; browser tests cover all languages, mobile layout, persistence, and unchanged typed data.

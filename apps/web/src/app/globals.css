@@ -1274,3 +1274,39 @@ svg {
     transition: none;
   }
 }
+
+.language-selector {
+  display: inline-flex;
+  max-width: 110px;
+  flex-shrink: 0;
+}
+.language-selector select {
+  font: inherit;
+  font-size: 12px;
+  color: var(--text);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  padding: 6px 4px;
+  max-width: 100%;
+  cursor: pointer;
+}
+.welcome-card > .language-selector {
+  display: flex;
+  margin: 0 auto 24px;
+}
+@media (max-width: 520px) {
+  .topbar .breadcrumb > strong,
+  .topbar .breadcrumb-divider,
+  .topbar .small-avatar {
+    display: none;
+  }
+  .topbar .breadcrumb {
+    min-width: 0;
+  }
+  .topbar .breadcrumb > span {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+}

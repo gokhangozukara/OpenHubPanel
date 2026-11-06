@@ -8,7 +8,7 @@
       "!**/.next",
       "!**/next-env.d.ts",
       "!**/pnpm-lock.yaml",
-      "!**/BundanOrnekAlacaz",
+      "!**/reference-panels",
       "!**/.local",
       "!**/playwright-report",
       "!**/test-results"

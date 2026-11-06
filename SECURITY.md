@@ -6,11 +6,11 @@ OpenHubPanel has an initial implementation and a local synthetic-data preview. T
 
 ## Report a vulnerability
 
-Please contact **Gokhan Gozukara** privately at [gokhangozukara@gmail.com](mailto:gokhangozukara@gmail.com) with the subject `HubPanel security report`.
+Please contact **Gokhan Gozukara** privately at [gokhangozukara@gmail.com](mailto:gokhangozukara@gmail.com) with the subject `OpenHubPanel security report`.
 
 Include the affected version or file, potential impact, and minimal reproduction steps using synthetic data. Do not send live credentials, private keys, customer data, or destructive proof-of-concept payloads. Do not post vulnerability details in a public issue before coordinating disclosure.
 
-GitHub private vulnerability reporting is enabled for [OpenHubPanel](https://github.com/gokhangozukara/OpenHubPanel/security/advisories/new). You can use it instead of email. No response-time commitment or bug bounty program has been established.
+The repository is currently private. Use the email address above for reports. GitHub private vulnerability reporting will be rechecked before public release; it is not currently available through the repository API. No response-time commitment or bug bounty program has been established.
 
 This policy does not authorize testing against live services, third-party systems, or systems you do not own. Local reference copies are outside the HubPanel release scope; concerns about another project should be reported to its maintainer.
 

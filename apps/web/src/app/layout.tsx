@@ -1,16 +1,25 @@
 import type { Metadata } from "next";
+import { cookies } from "next/headers";
+import { isLocale, localeCookie } from "@/i18n/locale";
+import { LocaleProvider } from "@/i18n/provider";
 import "./globals.css";
 
 export const metadata: Metadata = {
   title: "OpenHubPanel — All in one panel",
-  description: "Sitelerin, uygulamaların ve ekibin için ortak yönetim merkezi.",
+  description: "One home for your websites, applications, and the people who manage them.",
   robots: { index: false, follow: false },
 };
 
-export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
+export default async function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
+  const saved = (await cookies()).get(localeCookie)?.value;
+  const locale = isLocale(saved) ? saved : "en";
   return (
-    <html lang="tr">
-      <body>{children}</body>
+    <html lang={locale}>
+      <body>
+        <LocaleProvider initialLocale={locale} detectBrowser={!isLocale(saved)}>
+          {children}
+        </LocaleProvider>
+      </body>
     </html>
   );
 }

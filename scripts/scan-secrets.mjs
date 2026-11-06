@@ -4,7 +4,7 @@ import { readFileSync } from "node:fs";
 const files = execFileSync("git", ["ls-files", "-z"], { encoding: "utf8" }).split("\0").filter(Boolean);
 if (!files.length) throw new Error("No tracked files to scan. Stage the intended source files first.");
 const forbiddenPath =
-  /(^|\/)(BundanOrnekAlacaz|node_modules|\.local|\.next|uploads|backups)(\/|$)|\.local\.md$|(^|\/)\.env(?!\.example$)(\.|$)|\.(pem|key|pfx|p12|dump|sqlite3?)$|\.bak(?:-|$)/;
+  /(^|\/)(reference-panels|node_modules|\.local|\.next|uploads|backups)(\/|$)|\.local\.md$|(^|\/)\.env(?!\.example$)(\.|$)|\.(pem|key|pfx|p12|dump|sqlite3?)$|\.bak(?:-|$)/;
 const patterns = [
   /-----BEGIN (?:RSA |EC |OPENSSH )?PRIVATE KEY-----/,
   /\bgh[pousr]_[A-Za-z0-9]{30,}\b/,
@@ -14,8 +14,7 @@ const patterns = [
 ];
 const findings = [];
 for (const file of files) {
-  if (forbiddenPath.test(file) || file === "01-Arastirma/02-swzhub-degerlendirmesi.md")
-    findings.push({ file, reason: "excluded local/private file is tracked" });
+  if (forbiddenPath.test(file)) findings.push({ file, reason: "excluded local/private file is tracked" });
   const text = readFileSync(file, "utf8");
   if (text.includes("\0")) continue;
   if (patterns.some((pattern) => pattern.test(text)))
