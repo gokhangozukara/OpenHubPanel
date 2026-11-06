@@ -1,0 +1,36 @@
+name: openhubpanel
+services:
+  postgres:
+    image: postgres:18.6-alpine@sha256:123b17998ccaf47e53b502e8c6a1e79afd8f579c6f3eec83c563da026f957395
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: openhubpanel
+      POSTGRES_USER: openhub_admin
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Run pnpm setup:local first}
+      APP_DATABASE_PASSWORD: ${APP_DATABASE_PASSWORD:?Run pnpm setup:local first}
+    ports: ["127.0.0.1:54329:5432"]
+    volumes:
+      - pgdata:/var/lib/postgresql
+      - ../../packages/db/migrations/0001_workspace_foundation.sql:/docker-entrypoint-initdb.d/010-foundation.sql:ro
+      - ./init-app-role.sh:/docker-entrypoint-initdb.d/020-app-role.sh:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U openhub_admin -d openhubpanel"]
+      interval: 5s
+      timeout: 3s
+      retries: 15
+  redis:
+    image: redis:8.4-alpine@sha256:44b295aedd412d52a9846f51573e906e0a9c7d83ba431f4134b1b338d45ba732
+    restart: unless-stopped
+    environment:
+      REDIS_PASSWORD: ${REDIS_PASSWORD:?Run pnpm setup:local first}
+    command: ["sh", "-c", 'exec redis-server --appendonly yes --requirepass "$$REDIS_PASSWORD"']
+    ports: ["127.0.0.1:63799:6379"]
+    volumes: ["redisdata:/data"]
+    healthcheck:
+      test: ["CMD-SHELL", 'REDISCLI_AUTH="$$REDIS_PASSWORD" redis-cli ping | grep -q PONG']
+      interval: 5s
+      timeout: 3s
+      retries: 15
+volumes:
+  pgdata:
+  redisdata:

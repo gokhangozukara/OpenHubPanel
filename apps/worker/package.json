@@ -1,0 +1,17 @@
+{
+  "name": "@openhubpanel/worker",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "license": "MIT",
+  "scripts": {
+    "dev": "tsx src/index.ts",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@openhubpanel/observability": "workspace:*",
+    "@openhubpanel/security": "workspace:*",
+    "bullmq": "6.7.1",
+    "ioredis": "6.0.0"
+  }
+}

@@ -1,0 +1,47 @@
+# Local research copies and findings about an existing deployment.
+/BundanOrnekAlacaz/
+/01-Arastirma/02-swzhub-degerlendirmesi.md
+*.local.md
+
+# Credentials and local configuration. Examples must contain placeholders only.
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.p12
+*.pfx
+.npmrc
+.pnpmrc
+
+# Dependencies and generated output.
+node_modules/
+.next/
+dist/
+build/
+coverage/
+playwright-report/
+test-results/
+.turbo/
+*.tsbuildinfo
+*.log
+
+# Local data, backups and editor files.
+*.bak
+*.bak-*
+*.migrated-*
+*.sqlite
+*.sqlite3
+*.db
+*.sql.gz
+*.dump
+/backups/
+/uploads/
+/data/
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+.local/
+**/.local/
+artifacts/

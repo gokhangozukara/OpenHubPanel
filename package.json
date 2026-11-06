@@ -1,0 +1,43 @@
+{
+  "name": "openhubpanel",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "license": "MIT",
+  "author": "Gokhan Gozukara <gokhangozukara@gmail.com>",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/gokhangozukara/OpenHubPanel.git"
+  },
+  "packageManager": "pnpm@12.18.0",
+  "engines": {
+    "node": ">=24.0.0 <27"
+  },
+  "scripts": {
+    "dev": "node scripts/dev.mjs",
+    "build": "pnpm --filter @openhubpanel/web build",
+    "start": "pnpm --filter @openhubpanel/web start",
+    "typecheck": "tsc -p tsconfig.tools.json && pnpm -r typecheck",
+    "lint": "biome check .",
+    "format": "biome check --write .",
+    "test": "vitest run",
+    "test:db": "tsx scripts/test-db.ts",
+    "test:e2e": "playwright test",
+    "check": "pnpm typecheck && pnpm lint && pnpm test && pnpm build",
+    "infra:up": "docker compose --env-file .env -f infra/docker/compose.yml up -d --wait",
+    "infra:down": "docker compose --env-file .env -f infra/docker/compose.yml down",
+    "setup:local": "node scripts/setup-env.mjs",
+    "scan:secrets": "node scripts/scan-secrets.mjs",
+    "licenses:inventory": "node scripts/licenses.mjs"
+  },
+  "devDependencies": {
+    "@axe-core/playwright": "4.14.0",
+    "@biomejs/biome": "2.6.6",
+    "@playwright/test": "1.65.0",
+    "@types/node": "26.6.6",
+    "embedded-postgres": "18.6.0-beta.19",
+    "tsx": "4.23.15",
+    "typescript": "7.0.2",
+    "vitest": "5.1.0"
+  }
+}
