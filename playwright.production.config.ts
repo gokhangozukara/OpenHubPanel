@@ -1,0 +1,17 @@
+import { defineConfig, devices } from "@playwright/test";
+
+export default defineConfig({
+  testDir: "./tests/production",
+  forbidOnly: !!process.env.CI,
+  retries: process.env.CI ? 1 : 0,
+  reporter: [["list"], ["html", { outputFolder: "playwright-report/production", open: "never" }]],
+  use: { baseURL: "http://127.0.0.1:3101", locale: "en-US", trace: "retain-on-failure" },
+  projects: [{ name: "chromium", use: { ...devices["Desktop Chrome"] } }],
+  webServer: {
+    command: "node scripts/start-production-test.mjs",
+    url: "http://127.0.0.1:3101",
+    reuseExistingServer: false,
+    timeout: 120_000,
+    env: { OPENHUB_PREVIEW: "1", NEXT_TELEMETRY_DISABLED: "1" },
+  },
+});

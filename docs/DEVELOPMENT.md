@@ -24,12 +24,15 @@ npx --yes pnpm@12.18.0 check
 npx --yes pnpm@12.18.0 test:db
 npx --yes pnpm@12.18.0 exec playwright install chromium
 npx --yes pnpm@12.18.0 test:e2e
+npx --yes pnpm@12.18.0 test:production
 npx --yes pnpm@12.18.0 audit --audit-level=moderate
 ```
 
 `test:db` starts a real, isolated PostgreSQL 18.6 process on a randomly selected loopback port. It generates credentials in memory, migrates a separate database, tests RLS through the unprivileged application login, and stops the process. Its local data stays under ignored `.local/`; no existing database is touched. Native binaries are supplied by the pinned development dependency `embedded-postgres`. Do not run it as root; CI uses a normal runner user.
 
 E2E starts an isolated Next.js development server on port 3100. Stop your OpenHubPanel dev server before running it: Next.js does not allow two dev servers for the same app output directory. Tests cover sample workspace switching, role-specific UI, search/empty state, dialog keyboard use, local-only editing, persisted theme, automated WCAG AA checks, mobile overflow, safe health responses, all three languages, language persistence, browser preference fallback, and form/workspace preservation. Automated checks do not establish full WCAG conformance or production security.
+
+`test:production` rebuilds and starts the standalone production artifact on loopback port 3101. It verifies nonce-based CSP, rejected script injection, hydration, spoofed request headers, and production preview closure. Run it sequentially with development tests/builds because they share the Next.js output directory. No authentication or production credentials are required.
 
 ## Optional local infrastructure
 

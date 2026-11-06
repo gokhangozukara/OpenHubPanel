@@ -18,4 +18,4 @@ If it cannot meet the contract, record a maintained replacement. Sources: [passw
 
 ## Limits
 
-Bootstrap, real password/TOTP sign-in, invitations/transfers, connectors, outbox, and real pilot are unimplemented. The shell is an initial phase 2 delivery, not a completed component/state catalog. Baseline CSP permits framework inline scripts; strict nonce CSP and required web-runtime secret validation must accompany real authentication.
+Bootstrap, real password/TOTP sign-in, invitations/transfers, connectors, outbox, and real pilot are unimplemented. The shell is an initial phase 2 delivery, not a completed component/state catalog. Nonce-based CSP is now implemented and tested against the standalone production build. Required web-runtime secret validation still must accompany real authentication. See the [candidate review](../research/authentication-candidate-review.md) for default-policy mismatches that prevent accepting the two-factor plugin unchanged.

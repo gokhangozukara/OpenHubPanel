@@ -27,15 +27,15 @@ Initial implementation: pnpm monorepo, Next.js interface, synthetic preview, Pos
 
 The [foundation review](docs/research/foundation-review.md) passed 43 unit/tooling tests, 10 real PostgreSQL checks, and 13 Chromium E2E tests locally. DB checks cover application/RLS boundaries, workspace impersonation, transaction context, audit actor/foreign-key/rollback, and revoked membership. Browser checks include all three interface languages, persistence, browser-language fallback, blocked localStorage, unchanged typed data/workspace, and German mobile accessibility/layout. Type checks, lint, and production build are also verified before committing.
 
-The prior [code CI run](https://github.com/gokhangozukara/OpenHubPanel/actions/runs/42248895932) passed checks/container jobs. It verified production preview 404 even with the flag, unauthorized readiness 404, healthy DB/Redis readiness 200, and Redis outage 503.
+The prior [code CI run](https://github.com/gokhangozukara/OpenHubPanel/actions/runs/42282583304) passed checks/container jobs. It verified production preview 404 even with the flag, unauthorized readiness 404, healthy DB/Redis readiness 200, and Redis outage 503.
 
 The license inventory records 105 installed package/version entries. Gitleaks scans source/history with one exact documented historical false positive for a deliberately invalid CI token. Results are point-in-time evidence, not security guarantees.
 
 ## Limits and next work
 
-Helper/RLS/preview checks do not establish all 24 end-to-end threat scenarios. Real MFA/recovery, scoped management, invitation/transfer lifecycle, outbox, email, restored-state revocation, and pilot remain unverified. Strict nonce CSP and real authentication startup validation are required. Automated accessibility checks do not prove full WCAG conformance.
+Helper/RLS/preview checks do not establish all 24 end-to-end threat scenarios. Real MFA/recovery, scoped management, invitation/transfer lifecycle, outbox, email, restored-state revocation, and pilot remain unverified. Nonce CSP now passes four standalone-production browser checks. Real authentication startup validation remains required. Automated accessibility checks do not prove full WCAG conformance.
 
-Next verify the authentication candidate, then bootstrap → password/TOTP → server session → scoped read → revocation/audit. Finish phase 2 component/state acceptance separately. Follow the [roadmap](docs/roadmap/implementation.md) and [implementation brief](docs/contributing/implementation-brief.md).
+The [authentication candidate review](docs/research/authentication-candidate-review.md) identifies required lifecycle adaptations; default plugin behavior is not accepted. Next prove or replace the candidate integration, then bootstrap → password/TOTP → server session → scoped read → revocation/audit. Finish phase 2 component/state acceptance separately. Follow the [roadmap](docs/roadmap/implementation.md) and [implementation brief](docs/contributing/implementation-brief.md).
 
 Our team is the intended first pilot. The owner reports more than ten apps; inventory is unreviewed. Responsive web comes first, PWA is a candidate, native distribution/naming remain open.
 

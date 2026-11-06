@@ -78,7 +78,7 @@ Remote writes are not atomic with local database commits. Store intent, audit, a
 
 Use HSTS, CSP, nosniff, and referrer policy. Fail production startup for missing/invalid required secrets; development defaults cannot reach production. Redact logs/errors. Keep database ports private and application/migration/maintenance roles separate. Auth/private responses are not shared-cacheable; secret enrollment pages use `no-store` and a restrictive referrer policy. Public health reveals no infrastructure or credentials.
 
-The present foundation CSP allows framework inline scripts. Strict nonce CSP must be connected before real authentication; do not describe the current baseline as complete hardening.
+The web proxy generates a fresh 256-bit nonce per request and supplies it to Next.js rendering and the response policy. Production scripts require a nonce and permit neither generic inline execution nor eval; development retains framework-required eval/style exceptions. Pages are dynamically rendered and not shared-cacheable. Do not bypass the proxy for document requests or cache nonce-bearing HTML at a CDN. Production browser checks cover hydration, script rejection, and client header spoofing. CSP does not replace output encoding, authorization, or authentication.
 
 Before uploads ship, verify extension, MIME, and content signature; reject SVG/HTML in MVP. Enforce size at proxy and streaming layers, user quotas, UUID storage names, storage outside the web root, and authorized downloads. Do not trust filenames or serve private uploads through a shared public cache.
 

@@ -66,7 +66,12 @@ test("public health does not disclose infrastructure or credentials", async ({ r
   expect(management.status()).toBe(503);
   const readiness = await request.get("/api/internal/ready");
   expect(readiness.status()).toBe(404);
-  expect(readiness.headers()["cache-control"]).toBe("no-store");
+  expect(
+    readiness
+      .headers()
+      ["cache-control"]?.split(",")
+      .map((value) => value.trim()),
+  ).toContain("no-store");
 });
 
 test("theme toggle follows the effective system theme", async ({ page }) => {
