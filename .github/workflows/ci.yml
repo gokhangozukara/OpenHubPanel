@@ -90,6 +90,7 @@ jobs:
             sleep 1
           done
           test "$(curl -s -o /dev/null -w '%{http_code}' -H "Authorization: Bearer ${READINESS_TOKEN}" http://127.0.0.1:3201/api/internal/ready)" = 200
-          test "$(curl -s -o /dev/null -w '%{http_code}' -H 'Authorization: Bearer wrong-token' http://127.0.0.1:3201/api/internal/ready)" = 404
+          invalid_token=invalid
+          test "$(curl -s -o /dev/null -w '%{http_code}' -H "Authorization: Bearer ${invalid_token}" http://127.0.0.1:3201/api/internal/ready)" = 404
           docker compose --env-file .env -f infra/docker/compose.yml stop redis
           test "$(curl -s -o /dev/null -w '%{http_code}' -H "Authorization: Bearer ${READINESS_TOKEN}" http://127.0.0.1:3201/api/internal/ready)" = 503

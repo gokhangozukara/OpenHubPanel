@@ -45,3 +45,4 @@ Thumbs.db
 .local/
 **/.local/
 artifacts/
+apps/web/next-env.d.ts

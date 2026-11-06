@@ -1,0 +1,3 @@
+# Exact historical finding: deliberately invalid `wrong-token` in the CI negative-auth test.
+# This is not a credential. No paths or token patterns are globally excluded.
+ae09d8a51773a06ce9120cccae3596f83dbda605:.github/workflows/ci.yml:curl-auth-header:89
