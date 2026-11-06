@@ -8,7 +8,7 @@ for (const locale of ["en", "tr", "de"] satisfies Locale[]) {
     await page.goto("/preview");
     await page.locator(".language-selector select").selectOption(locale);
     await expect(page.locator("html")).toHaveAttribute("lang", locale);
-    await expect(page.getByRole("heading", { name: t("Everything in one place.") })).toBeVisible();
+    await expect(page.getByRole("heading", { name: t("Overview") })).toBeVisible();
     await page.getByRole("button", { name: t("Connect application"), exact: true }).click();
     await expect(page.getByLabel(t("Application name"), { exact: true })).toBeVisible();
     await page.getByLabel(t("Application name"), { exact: true }).fill("Sample project");
@@ -54,7 +54,9 @@ test("language changes preserve typed data and workspace; German fits mobile", a
   await page.getByLabel(translate("de", "Workspace"), { exact: true }).selectOption("ada");
   await page.locator(".language-selector select").selectOption("tr");
   await expect(page.locator("#workspace")).toHaveValue("ada");
-  await expect(page.getByText(translate("tr", "Design Journal"), { exact: true })).toBeVisible();
+  await expect(
+    page.locator(".app-table").getByText(translate("tr", "Design Journal"), { exact: true }),
+  ).toBeVisible();
   await page.locator(".language-selector select").selectOption("de");
   await page.setViewportSize({ width: 390, height: 844 });
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
@@ -76,9 +78,7 @@ test("uses browser preferences and survives unavailable local storage", async ({
   });
   const page = await context.newPage();
   await page.goto("/preview");
-  await expect(
-    page.getByRole("heading", { name: translate("de", "Everything in one place.") }),
-  ).toBeVisible();
+  await expect(page.getByRole("heading", { name: translate("de", "Overview") })).toBeVisible();
   await page.locator(".language-selector select").selectOption("tr");
   await page.reload();
   await expect(page.locator("html")).toHaveAttribute("lang", "tr");

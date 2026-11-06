@@ -6,7 +6,6 @@ import {
   ArrowUpRight,
   Blocks,
   BookOpen,
-  Check,
   CheckCheck,
   ChevronDown,
   CircleCheck,
@@ -14,7 +13,6 @@ import {
   Clock3,
   ExternalLink,
   FileText,
-  FolderKanban,
   KeyRound,
   LayoutDashboard,
   Link2,
@@ -22,17 +20,19 @@ import {
   Menu,
   Monitor,
   Moon,
+  PanelLeftClose,
+  PanelLeftOpen,
   Plus,
   Search,
   Settings2,
   ShieldCheck,
-  Sparkles,
   Sun,
   Users,
   X,
 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { LanguageSelector, useLocale } from "@/i18n/provider";
+import { CommandSearch } from "./command-search";
 import { activities, applications, members, type PreviewApplication, workspaces } from "./fixtures";
 import { useMediaQuery } from "./use-media-query";
 
@@ -165,6 +165,9 @@ export function PreviewPanel() {
   const [section, setSection] = useState<Section>("overview");
   const [workspace, setWorkspace] = useState("atlas");
   const [query, setQuery] = useState("");
+  const [searchOpen, setSearchOpen] = useState(false);
+  const [collapsed, setCollapsed] = useState(false);
+  const [statusFilter, setStatusFilter] = useState("all");
   const [theme, setTheme] = useState<Theme>("light");
   const systemDark = useMediaQuery("(prefers-color-scheme: dark)");
   const mobile = useMediaQuery("(max-width: 850px)");
@@ -178,8 +181,10 @@ export function PreviewPanel() {
   const dialog = useRef<HTMLDialogElement>(null);
   const currentWorkspace = workspaces.find((item) => item.id === workspace) ?? workspaces[0];
   const apps = applications.filter((app) => app.workspace === workspace);
-  const filteredApps = apps.filter((app) =>
-    `${t(app.name)} ${t(app.category)}`.toLocaleLowerCase(locale).includes(query.toLocaleLowerCase(locale)),
+  const filteredApps = apps.filter(
+    (app) =>
+      (statusFilter === "all" || app.status === statusFilter) &&
+      `${t(app.name)} ${t(app.category)}`.toLocaleLowerCase(locale).includes(query.toLocaleLowerCase(locale)),
   );
   const team = members.filter((member) => member.workspace === workspace);
   const events = activities.filter((event) => event.workspace === workspace);
@@ -201,6 +206,7 @@ export function PreviewPanel() {
 
   useEffect(() => {
     try {
+      setCollapsed(localStorage.getItem("openhubpanel.sidebar") === "collapsed");
       const saved = localStorage.getItem("openhubpanel.theme");
       if (saved === "light" || saved === "dark" || saved === "system") setTheme(saved);
     } catch {
@@ -217,15 +223,41 @@ export function PreviewPanel() {
     return () => clearTimeout(timer);
   }, [notice]);
 
+  useEffect(() => {
+    const shortcut = (event: KeyboardEvent) => {
+      if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "k" && !modal) {
+        event.preventDefault();
+        setSearchOpen((value) => !value);
+      }
+    };
+    window.addEventListener("keydown", shortcut);
+    return () => window.removeEventListener("keydown", shortcut);
+  }, [modal]);
+
+  function toggleSidebar() {
+    setCollapsed(!collapsed);
+    try {
+      localStorage.setItem("openhubpanel.sidebar", collapsed ? "expanded" : "collapsed");
+    } catch {
+      /* Optional display preference. */
+    }
+  }
+  function openApplication(app: PreviewApplication) {
+    setMobileOpen(false);
+    setModal({ kind: "application", app });
+  }
+
   function navigate(next: Section) {
     setSection(next);
     setQuery("");
+    setStatusFilter("all");
     setMobileOpen(false);
     setNotice("");
   }
   function changeWorkspace(next: string) {
     setWorkspace(next);
     setQuery("");
+    setStatusFilter("all");
     setModal(null);
     setNotice("");
     setExampleTitle(null);
@@ -242,7 +274,7 @@ export function PreviewPanel() {
   }
 
   return (
-    <div className="panel" data-theme={theme}>
+    <div className="panel" data-theme={theme} data-sidebar={collapsed && !mobile ? "collapsed" : "expanded"}>
       <a href="#main-content" className="skip-link">
         {t("Skip to content")}
       </a>
@@ -260,13 +292,11 @@ export function PreviewPanel() {
         className={`sidebar ${mobileOpen ? "is-open" : ""}`}
         aria-label={t("Main menu")}
       >
-        <a href="/" className="brand">
+        <a href="/" className="brand" aria-label="OpenHubPanel">
           <span className="brand-symbol">
             <Blocks size={21} aria-hidden="true" />
           </span>
-          <span>
-            OpenHubPanel<span className="brand-tagline">ALL IN ONE PANEL</span>
-          </span>
+          <span>OpenHubPanel</span>
         </a>
         <div className="workspace-control">
           <span className="workspace-avatar">{currentWorkspace.initials}</span>
@@ -286,48 +316,65 @@ export function PreviewPanel() {
           </div>
           <ChevronDown size={15} aria-hidden="true" />
         </div>
-        <p className="nav-heading">{t("MANAGE")}</p>
-        <nav>
-          {sections.map(({ id, name, icon: Icon }) => (
-            <button
-              type="button"
-              key={id}
-              onClick={() => navigate(id)}
-              className={`nav-item ${section === id ? "active" : ""}`}
-              aria-current={section === id ? "page" : undefined}
-            >
-              <Icon size={18} aria-hidden="true" />
-              <span>{t(name)}</span>
-              {id === "applications" && <span className="nav-count">{apps.length}</span>}
-            </button>
+        <nav aria-label={t("Navigation")}>
+          {[
+            { name: "General", ids: ["overview"] },
+            { name: "Workspace", ids: ["applications", "team"] },
+            { name: "System", ids: ["activity", "security", "settings"] },
+          ].map((group) => (
+            <div className="nav-group" key={group.name}>
+              <p className="nav-heading">{t(group.name)}</p>
+              {sections
+                .filter(({ id }) => group.ids.includes(id))
+                .map(({ id, name, icon: Icon }) => (
+                  <button
+                    type="button"
+                    key={id}
+                    onClick={() => navigate(id)}
+                    className={`nav-item ${section === id ? "active" : ""}`}
+                    aria-label={t(name)}
+                    title={collapsed ? t(name) : undefined}
+                    aria-current={section === id ? "page" : undefined}
+                  >
+                    <Icon size={17} aria-hidden="true" />
+                    <span>{t(name)}</span>
+                    {id === "applications" && <span className="nav-count">{apps.length}</span>}
+                  </button>
+                ))}
+            </div>
           ))}
         </nav>
-        <div className="sidebar-bottom">
-          <div className="help-card">
-            <span className="help-card-icon">
-              <Sparkles size={18} aria-hidden="true" />
-            </span>
-            <strong>{t("Better together.")}</strong>
-            <p>
-              {t("Connect your app. Make work easier.")}
-              <br />
-              {t("Help shape an open-source project.")}
-            </p>
-            <a
-              href="https://github.com/gokhangozukara/OpenHubPanel/blob/main/CONTRIBUTING.md"
-              target="_blank"
-              rel="noreferrer"
+        <section className="application-shortcuts" aria-label={t("Application shortcuts")}>
+          <p className="nav-heading">{t("Your applications")}</p>
+          {apps.map((app) => (
+            <button
+              type="button"
+              className="nav-item"
+              key={app.id}
+              title={t(app.name)}
+              aria-label={t("Open {name}", { name: t(app.name) })}
+              onClick={() => openApplication(app)}
             >
-              {t("Contribute")} <ArrowUpRight size={14} aria-hidden="true" />
-            </a>
-          </div>
+              <span className="shortcut-initials" aria-hidden="true">
+                {app.initials}
+              </span>
+              <span className="shortcut-name">{t(app.name)}</span>
+              <span
+                className={`connection-dot ${app.status === "connected" ? "connected" : "pending"}`}
+                aria-hidden="true"
+              />
+            </button>
+          ))}
+        </section>
+        <div className="sidebar-bottom">
           <a
             className="sidebar-docs"
+            aria-label={t("Documentation")}
             href="https://github.com/gokhangozukara/OpenHubPanel#readme"
             target="_blank"
             rel="noreferrer"
           >
-            <BookOpen size={17} aria-hidden="true" /> {t("Documentation")}{" "}
+            <BookOpen size={17} aria-hidden="true" /> <span>{t("Documentation")}</span>{" "}
             <ExternalLink size={13} aria-hidden="true" />
           </a>
           <div className="sidebar-profile">
@@ -354,10 +401,28 @@ export function PreviewPanel() {
             >
               <Menu size={21} />
             </button>
-            <FolderKanban size={17} aria-hidden="true" />
-            <span>{t(currentWorkspace.name)}</span>
-            <span className="breadcrumb-divider">/</span>
-            <strong>{t(sections.find((item) => item.id === section)?.name ?? "")}</strong>
+            <button
+              type="button"
+              className="icon-button desktop-toggle"
+              onClick={toggleSidebar}
+              aria-label={t(collapsed ? "Expand sidebar" : "Collapse sidebar")}
+              aria-expanded={!collapsed}
+            >
+              {collapsed ? <PanelLeftOpen size={19} /> : <PanelLeftClose size={19} />}
+            </button>
+            <button
+              type="button"
+              className="command-trigger"
+              aria-label={t("Search workspace")}
+              onClick={() => setSearchOpen(true)}
+            >
+              <Search size={16} aria-hidden="true" />
+              <span>{t("Search workspace")}</span>
+              <kbd>Ctrl K</kbd>
+            </button>
+            <span className="topbar-workspace" title={t(currentWorkspace.name)}>
+              {t(currentWorkspace.name)}
+            </span>
           </div>
           <div className="topbar-actions">
             <LanguageSelector />
@@ -389,15 +454,14 @@ export function PreviewPanel() {
           </div>
           <div className="page-heading">
             <div>
-              <p className="eyebrow">{section === "overview" ? t("YOUR WORKSPACE") : t("MANAGEMENT HUB")}</p>
               <h1>
                 {section === "overview"
-                  ? t("Everything in one place.")
+                  ? t("Overview")
                   : t(sections.find((item) => item.id === section)?.name ?? "")}
               </h1>
               <p>
                 {section === "overview"
-                  ? t("Your apps, your team, and your daily work. One place to manage them.")
+                  ? t("Applications and activity in {name}.", { name: t(currentWorkspace.name) })
                   : section === "applications"
                     ? t("Keep track of your connected projects and their access.")
                     : section === "team"
@@ -461,7 +525,7 @@ export function PreviewPanel() {
                         <Icon size={18} aria-hidden="true" />
                       </span>
                     </div>
-                    <strong className="stat-value">{value.toString().padStart(2, "0")}</strong>
+                    <strong className="stat-value">{value}</strong>
                     <p>{t(foot)}</p>
                   </article>
                 ))}
@@ -481,56 +545,52 @@ export function PreviewPanel() {
                     apps={filteredApps}
                     workspaceName={t(currentWorkspace.name)}
                     onOpen={(app) => setModal({ kind: "application", app })}
-                    onClear={() => setQuery("")}
+                    onClear={() => {
+                      setQuery("");
+                      setStatusFilter("all");
+                    }}
                   />
                 </section>
-                <section className="card checklist-card">
+                <section className="card attention-card">
                   <div className="card-heading">
                     <div>
-                      <h2>{t("Getting started")}</h2>
-                      <p>{t("Get your workspace ready.")}</p>
+                      <h2>{t("Needs attention")}</h2>
+                      <p>{t("Finish setting up your applications.")}</p>
                     </div>
-                    <span className="checklist-progress">2 / 3</span>
                   </div>
-                  <div className="progress-track">
-                    <span />
+                  {apps
+                    .filter((app) => app.status !== "connected")
+                    .map((app) => (
+                      <div className="attention-item" key={app.id}>
+                        <span className={`app-icon ${app.color}`}>{app.initials}</span>
+                        <div>
+                          <strong>{t(app.name)}</strong>
+                          <p>{t("Setup pending")}</p>
+                        </div>
+                        <button
+                          className="icon-button"
+                          type="button"
+                          aria-label={t("Review {name}", { name: t(app.name) })}
+                          onClick={() => openApplication(app)}
+                        >
+                          <ArrowRight size={17} />
+                        </button>
+                      </div>
+                    ))}
+                  {apps.every((app) => app.status === "connected") && (
+                    <p className="attention-empty">
+                      <CircleCheck size={18} />
+                      {t("All applications are connected.")}
+                    </p>
+                  )}
+                  <div className="attention-team">
+                    <Users size={17} />
+                    <span>{t("People working together")}</span>
+                    <button className="text-button" type="button" onClick={() => navigate("team")}>
+                      {t("View team")}
+                      <ArrowRight size={14} />
+                    </button>
                   </div>
-                  <ol className="checklist">
-                    <li>
-                      <span className="step-check">
-                        <Check size={14} />
-                      </span>
-                      <div>
-                        <strong>{t("Create your workspace")}</strong>
-                        <p>{t("A shared home for your team.")}</p>
-                      </div>
-                    </li>
-                    <li>
-                      <span className="step-check">
-                        <Check size={14} />
-                      </span>
-                      <div>
-                        <strong>{t("Connect your first application")}</strong>
-                        <p>{t("Bring your projects together.")}</p>
-                      </div>
-                    </li>
-                    <li>
-                      <span className="step-pending">3</span>
-                      <div>
-                        <strong>{t("Invite your team")}</strong>
-                        <p>{t("Start managing things together.")}</p>
-                      </div>
-                    </li>
-                  </ol>
-                  <button
-                    type="button"
-                    className="button secondary full-width"
-                    onClick={() => (isOwner ? setModal({ kind: "invite" }) : navigate("team"))}
-                  >
-                    {isOwner ? t("Preview an invitation") : t("View team")}
-                    <ArrowRight size={15} />
-                  </button>
-                  <p className="small muted sample-note">{t("Sample setup steps")}</p>
                 </section>
               </div>
               <div className="overview-bottom">
@@ -546,25 +606,6 @@ export function PreviewPanel() {
                   </div>
                   <ActivityList events={events} />
                 </section>
-                <section className="community-card">
-                  <div className="community-mark">
-                    <Blocks size={27} aria-hidden="true" />
-                    <span>{t("Open source · MIT")}</span>
-                  </div>
-                  <h2>
-                    {t("One hub.")}
-                    <br />
-                    {t("Less to juggle.")}
-                  </h2>
-                  <p>
-                    {t("Stop rebuilding a panel for every project.")}
-                    <br />
-                    {t("Connect your apps and get back to work.")}
-                  </p>
-                  <a href="https://github.com/gokhangozukara/OpenHubPanel" target="_blank" rel="noreferrer">
-                    {t("Explore OpenHubPanel")} <ArrowUpRight size={16} aria-hidden="true" />
-                  </a>
-                </section>
               </div>
             </>
           )}
@@ -576,21 +617,35 @@ export function PreviewPanel() {
                   <h2>{t("All applications")}</h2>
                   <span className="count-badge">{apps.length}</span>
                 </div>
-                <label className="search-field">
-                  <Search size={17} aria-hidden="true" />
-                  <input
-                    value={query}
-                    onChange={(event) => setQuery(event.target.value)}
-                    placeholder={t("Search applications…")}
-                    aria-label={t("Search applications")}
-                  />
-                </label>
+                <div className="application-filters">
+                  <select
+                    aria-label={t("Filter by connection")}
+                    value={statusFilter}
+                    onChange={(event) => setStatusFilter(event.target.value)}
+                  >
+                    <option value="all">{t("All statuses")}</option>
+                    <option value="connected">{t("Connected")}</option>
+                    <option value="pending">{t("Setup pending")}</option>
+                  </select>
+                  <label className="search-field">
+                    <Search size={17} aria-hidden="true" />
+                    <input
+                      value={query}
+                      onChange={(event) => setQuery(event.target.value)}
+                      placeholder={t("Search applications…")}
+                      aria-label={t("Search applications")}
+                    />
+                  </label>
+                </div>
               </div>
               <ApplicationTable
                 apps={filteredApps}
                 workspaceName={t(currentWorkspace.name)}
                 onOpen={(app) => setModal({ kind: "application", app })}
-                onClear={() => setQuery("")}
+                onClear={() => {
+                  setQuery("");
+                  setStatusFilter("all");
+                }}
               />
             </section>
           )}
@@ -727,6 +782,24 @@ export function PreviewPanel() {
         </main>
       </div>
 
+      <CommandSearch
+        open={searchOpen}
+        onClose={() => setSearchOpen(false)}
+        commands={[
+          ...sections.map(({ id, name }) => ({
+            id,
+            label: t(name),
+            group: t("Navigation"),
+            run: () => navigate(id),
+          })),
+          ...apps.map((app) => ({
+            id: app.id,
+            label: t(app.name),
+            group: t("Your applications"),
+            run: () => openApplication(app),
+          })),
+        ]}
+      />
       <dialog
         ref={dialog}
         className="panel-dialog"

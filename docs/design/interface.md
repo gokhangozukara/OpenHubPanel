@@ -2,6 +2,8 @@
 
 OpenHubPanel should feel calm, clear, and quick to learn. Keep the product useful before adding decorative dashboards.
 
+The [workspace review](workspace-review.md) records the owner's reference comparison and the current revision: neutral chrome, grouped and collapsible navigation, direct application shortcuts, keyboard search, and combined connection filters. Keep promotional cards out of the daily workspace.
+
 ## Structure and behavior
 
 Use clear application identity, an obvious workspace selector, small main navigation, page title/description, and one primary action. The current shell covers overview, applications, team, activity, security, and settings. Small forms/details use accessible dialogs.

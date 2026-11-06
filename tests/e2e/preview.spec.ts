@@ -3,10 +3,10 @@ import { expect, test } from "@playwright/test";
 
 test("workspace switch clears application data and owner-only controls", async ({ page }) => {
   await page.goto("/preview");
-  await expect(page.getByRole("heading", { name: "Everything in one place." })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Overview" })).toBeVisible();
   await expect(page.getByRole("button", { name: "Connect application", exact: true })).toBeVisible();
   await page.getByLabel("Workspace", { exact: true }).selectOption("ada");
-  await expect(page.getByText("Design Journal", { exact: true })).toBeVisible();
+  await expect(page.locator(".app-table").getByText("Design Journal", { exact: true })).toBeVisible();
   await expect(page.getByText("Content Studio", { exact: true })).toHaveCount(0);
   await expect(page.getByRole("button", { name: "Connect application", exact: true })).toHaveCount(0);
 });

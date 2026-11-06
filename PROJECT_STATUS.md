@@ -8,28 +8,30 @@ Repository: [gokhangozukara/OpenHubPanel](https://github.com/gokhangozukara/Open
 
 Initial implementation: pnpm monorepo, Next.js interface, synthetic preview, PostgreSQL RLS, shared security/contracts, and automated checks. Full P0 and production management are incomplete.
 
-| Area                   | Status                                                                                                  |
-| ---------------------- | ------------------------------------------------------------------------------------------------------- |
-| Identity/license       | OpenHubPanel; MIT; Gokhan Gozukara                                                                      |
-| Repository conventions | English names, code, comments, and documentation                                                        |
-| Interface languages    | English, Turkish, German; shared catalogs, remembered selection                                         |
-| Foundation             | Node 24, pnpm 12.18.0, strict TypeScript, six app/package workspaces, pinned lockfile                   |
-| Database               | Separate application login, FORCE RLS, membership and append-only audit foundation                      |
-| Infrastructure         | Pinned images, PostgreSQL/Redis Compose, safe health/protected readiness; minimal ping worker           |
-| Interface              | Overview, search, workspace switch, team/activity/security examples, themes, mobile navigation, dialogs |
-| Preview boundary       | Synthetic only; no external writes/invitations; production preview disabled, management API 503         |
-| Real authentication    | Not implemented; ADR-006 candidate review is not acceptance                                             |
-| Real management        | Not implemented; preview memberships/forms are not backend operations                                   |
-| Connectors/outbox      | Initial schemas only; no external connection or remote write                                            |
-| Release/pilot          | Incomplete; no live migration or VPS deployment                                                         |
+| Area                   | Status                                                                                                                 |
+| ---------------------- | ---------------------------------------------------------------------------------------------------------------------- |
+| Identity/license       | OpenHubPanel; MIT; Gokhan Gozukara                                                                                     |
+| Repository conventions | English names, code, comments, and documentation                                                                       |
+| Interface languages    | English, Turkish, German; shared catalogs, remembered selection                                                        |
+| Foundation             | Node 24, pnpm 12.18.0, strict TypeScript, six app/package workspaces, pinned lockfile                                  |
+| Database               | Separate application login, FORCE RLS, membership and append-only audit foundation                                     |
+| Infrastructure         | Pinned images, PostgreSQL/Redis Compose, safe health/protected readiness; minimal ping worker                          |
+| Interface              | Compact workspace, grouped/collapsible sidebar, scoped keyboard search, application shortcuts/filters, three languages |
+| Preview boundary       | Synthetic only; no external writes/invitations; production preview disabled, management API 503                        |
+| Real authentication    | Not implemented; ADR-006 candidate review is not acceptance                                                            |
+| Real management        | Not implemented; preview memberships/forms are not backend operations                                                  |
+| Connectors/outbox      | Initial schemas only; no external connection or remote write                                                           |
+| Release/pilot          | Incomplete; no live migration or VPS deployment                                                                        |
 
 ## Verification evidence
 
-The [foundation review](docs/research/foundation-review.md) passed 43 unit/tooling tests, 10 real PostgreSQL checks, and 13 Chromium E2E tests locally. DB checks cover application/RLS boundaries, workspace impersonation, transaction context, audit actor/foreign-key/rollback, and revoked membership. Browser checks include all three interface languages, persistence, browser-language fallback, blocked localStorage, unchanged typed data/workspace, and German mobile accessibility/layout. Type checks, lint, and production build are also verified before committing.
+The [foundation review](docs/research/foundation-review.md) passed 43 unit/tooling tests, 10 real PostgreSQL checks, and 17 Chromium E2E tests locally. DB checks cover application/RLS boundaries, workspace impersonation, transaction context, audit actor/foreign-key/rollback, and revoked membership. Browser checks include all three interface languages, persistence, browser-language fallback, blocked localStorage, unchanged typed data/workspace, and German mobile accessibility/layout. Type checks, lint, and production build are also verified before committing.
 
-The prior [code CI run](https://github.com/gokhangozukara/OpenHubPanel/actions/runs/42282583304) passed checks/container jobs. It verified production preview 404 even with the flag, unauthorized readiness 404, healthy DB/Redis readiness 200, and Redis outage 503.
+The prior [code CI run](https://github.com/gokhangozukara/OpenHubPanel/actions/runs/42284627767) passed checks/container jobs. It verified production preview 404 even with the flag, unauthorized readiness 404, healthy DB/Redis readiness 200, and Redis outage 503.
 
 The license inventory records 105 installed package/version entries. Gitleaks scans source/history with one exact documented historical false positive for a deliberately invalid CI token. Results are point-in-time evidence, not security guarantees.
+
+The [workspace redesign](docs/design/workspace-review.md) replaces promotional dashboard cards with task-focused navigation and connection follow-up. The updated screenshot uses synthetic data only.
 
 ## Limits and next work
 

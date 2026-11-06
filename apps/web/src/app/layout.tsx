@@ -3,6 +3,7 @@ import { cookies } from "next/headers";
 import { isLocale, localeCookie } from "@/i18n/locale";
 import { LocaleProvider } from "@/i18n/provider";
 import "./globals.css";
+import "./workspace.css";
 
 export const metadata: Metadata = {
   title: "OpenHubPanel — All in one panel",

@@ -179,5 +179,22 @@
   "English": "English",
   "Turkish": "Turkish",
   "German": "German",
-  "Open source · MIT": "OPEN SOURCE · MIT"
+  "Open source · MIT": "OPEN SOURCE · MIT",
+  "Search workspace": "Search workspace",
+  "Search pages and applications": "Search pages and applications",
+  "No matching results": "No matching results",
+  "Use arrow keys to navigate. Enter to open. Escape to close.": "Use arrow keys to navigate. Enter to open. Escape to close.",
+  "Navigation": "Navigation",
+  "General": "General",
+  "Application shortcuts": "Application shortcuts",
+  "Open {name}": "Open {name}",
+  "Collapse sidebar": "Collapse sidebar",
+  "Expand sidebar": "Expand sidebar",
+  "Applications and activity in {name}.": "Applications and activity in {name}.",
+  "Needs attention": "Needs attention",
+  "Finish setting up your applications.": "Finish setting up your applications.",
+  "Review {name}": "Review {name}",
+  "All applications are connected.": "All applications are connected.",
+  "Filter by connection": "Filter by connection",
+  "All statuses": "All statuses"
 }

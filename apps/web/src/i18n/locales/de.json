@@ -179,5 +179,22 @@
   "English": "Englisch",
   "Turkish": "Türkisch",
   "German": "Deutsch",
-  "Open source · MIT": "OPEN SOURCE · MIT"
+  "Open source · MIT": "OPEN SOURCE · MIT",
+  "Search workspace": "Arbeitsbereich durchsuchen",
+  "Search pages and applications": "Seiten und Anwendungen suchen",
+  "No matching results": "Keine passenden Ergebnisse",
+  "Use arrow keys to navigate. Enter to open. Escape to close.": "Mit Pfeiltasten navigieren. Enter zum Öffnen. Escape zum Schließen.",
+  "Navigation": "Navigation",
+  "General": "Allgemein",
+  "Application shortcuts": "Anwendungsverknüpfungen",
+  "Open {name}": "{name} öffnen",
+  "Collapse sidebar": "Seitenleiste einklappen",
+  "Expand sidebar": "Seitenleiste ausklappen",
+  "Applications and activity in {name}.": "Anwendungen und Aktivitäten in {name}.",
+  "Needs attention": "Handlungsbedarf",
+  "Finish setting up your applications.": "Schließe die Einrichtung deiner Anwendungen ab.",
+  "Review {name}": "{name} prüfen",
+  "All applications are connected.": "Alle Anwendungen sind verbunden.",
+  "Filter by connection": "Nach Verbindungsstatus filtern",
+  "All statuses": "Alle Status"
 }

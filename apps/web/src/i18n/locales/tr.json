@@ -179,5 +179,22 @@
   "English": "İngilizce",
   "Turkish": "Türkçe",
   "German": "Almanca",
-  "Open source · MIT": "AÇIK KAYNAK · MIT"
+  "Open source · MIT": "AÇIK KAYNAK · MIT",
+  "Search workspace": "Panelde ara",
+  "Search pages and applications": "Sayfa ve uygulama ara",
+  "No matching results": "Eşleşen sonuç bulunamadı",
+  "Use arrow keys to navigate. Enter to open. Escape to close.": "Ok tuşlarıyla seç, Enter ile aç, Escape ile kapat.",
+  "Navigation": "Gezinme",
+  "General": "Genel",
+  "Application shortcuts": "Uygulama kısayolları",
+  "Open {name}": "{name} uygulamasını aç",
+  "Collapse sidebar": "Menüyü daralt",
+  "Expand sidebar": "Menüyü genişlet",
+  "Applications and activity in {name}.": "{name} uygulamaları ve son işlemler.",
+  "Needs attention": "İlgilenmen gerekenler",
+  "Finish setting up your applications.": "Uygulamalarının kurulumunu tamamla.",
+  "Review {name}": "{name} uygulamasını incele",
+  "All applications are connected.": "Tüm uygulamalar bağlı.",
+  "Filter by connection": "Bağlantı durumuna göre filtrele",
+  "All statuses": "Tüm durumlar"
 }
