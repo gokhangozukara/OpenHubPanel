@@ -53,6 +53,6 @@ npx --yes pnpm@12.18.0 scan:secrets
 npx --yes pnpm@12.18.0 licenses:inventory
 ```
 
-The source scanner checks tracked filenames and common credential formats; CI separately runs Gitleaks 8.30.0 over the full Git history with redacted output. Gitleaks release downloads are checksum verified. The license inventory records installed package metadata; original third-party LICENSE and NOTICE files remain authoritative.
+The source scanner checks tracked filenames and common credential formats; CI separately runs Gitleaks 8.30.0 over the full Git history with redacted output. Gitleaks release downloads are checksum verified. `.gitleaksignore` documents one exact historical finding for a deliberately invalid token in a negative CI test; no paths or credential patterns are excluded globally. The license inventory records installed package metadata; original third-party LICENSE and NOTICE files remain authoritative.
 
 The root `.gitignore` and `.dockerignore` exclude local reference panels, private deployment notes, runtime env files, local PostgreSQL data, test traces, and credentials. Publish only reviewed Git contents; never ZIP the entire research directory.

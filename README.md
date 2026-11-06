@@ -34,6 +34,8 @@ npx --yes pnpm@12.18.0 dev
 
 http://127.0.0.1:3000/preview adresini aç. **Önizleme örnek veri kullanır; canlı uygulamalara işlem yapmaz.** Üretimde bu yol kapalıdır. Kurulum, testler ve Docker ayrıntıları [geliştirme rehberinde](docs/DEVELOPMENT.md).
 
+![OpenHubPanel yerel arayüz önizlemesi — sentetik uygulama ve ekip verileri](docs/screenshots/local-preview.png)
+
 ## Ana hedefler
 
 - Uygulama kodunun ve arayüz tasarımının tamamı OpenHubPanel ekibine ait olacak.

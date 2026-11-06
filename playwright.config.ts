@@ -9,10 +9,10 @@ export default defineConfig({
   use: { baseURL: "http://127.0.0.1:3100", trace: "retain-on-failure" },
   projects: [{ name: "chromium", use: { ...devices["Desktop Chrome"] } }],
   webServer: {
-    command: "pnpm --filter @openhubpanel/web exec next dev --hostname 127.0.0.1 --port 3100",
+    command: "node scripts/dev.mjs",
     url: "http://127.0.0.1:3100",
     reuseExistingServer: false,
     timeout: 120_000,
-    env: { OPENHUB_PREVIEW: "1", NEXT_TELEMETRY_DISABLED: "1" },
+    env: { OPENHUB_PREVIEW: "1", NEXT_TELEMETRY_DISABLED: "1", PORT: "3100" },
   },
 });
