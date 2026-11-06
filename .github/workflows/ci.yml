@@ -59,14 +59,37 @@ jobs:
       - name: Verify production preview is closed
         shell: bash
         run: |
-          docker run -d --rm --name openhub-ci -p 127.0.0.1:3200:3000 openhubpanel:ci
+          docker run -d --rm --name openhub-ci -e OPENHUB_PREVIEW=1 -p 127.0.0.1:3200:3000 openhubpanel:ci
           trap 'docker stop openhub-ci' EXIT
           for attempt in {1..30}; do
             if curl -fsS http://127.0.0.1:3200/api/health; then break; fi
             sleep 1
           done
           test "$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:3200/preview)" = 404
+          test "$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:3200/api/internal/ready)" = 404
       - name: Validate development Compose configuration
         run: |
           node scripts/setup-env.mjs
           docker compose --env-file .env -f infra/docker/compose.yml config --quiet
+      - name: Verify PostgreSQL and Redis readiness and fail-closed behavior
+        shell: bash
+        run: |
+          set -eu
+          docker compose --env-file .env -f infra/docker/compose.yml up -d --wait
+          trap 'docker stop openhub-ready || true; docker compose --env-file .env -f infra/docker/compose.yml down' EXIT
+          set -a
+          source .env
+          set +a
+          docker run -d --rm --name openhub-ready --network openhubpanel_default \
+            --env-file .env -e APP_ORIGIN=https://panel.example \
+            -e DATABASE_URL="postgresql://openhub_app:${APP_DATABASE_PASSWORD}@postgres:5432/openhubpanel" \
+            -e REDIS_URL="redis://:${REDIS_PASSWORD}@redis:6379" \
+            -p 127.0.0.1:3201:3000 openhubpanel:ci
+          for attempt in {1..30}; do
+            if curl -fsS http://127.0.0.1:3201/api/health; then break; fi
+            sleep 1
+          done
+          test "$(curl -s -o /dev/null -w '%{http_code}' -H "Authorization: Bearer ${READINESS_TOKEN}" http://127.0.0.1:3201/api/internal/ready)" = 200
+          test "$(curl -s -o /dev/null -w '%{http_code}' -H 'Authorization: Bearer wrong-token' http://127.0.0.1:3201/api/internal/ready)" = 404
+          docker compose --env-file .env -f infra/docker/compose.yml stop redis
+          test "$(curl -s -o /dev/null -w '%{http_code}' -H "Authorization: Bearer ${READINESS_TOKEN}" http://127.0.0.1:3201/api/internal/ready)" = 503
