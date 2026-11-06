@@ -4,7 +4,7 @@ OpenHubPanel starts as a **modular monolith**, with clear boundaries and a separ
 
 ## Technology and repository structure
 
-The current foundation uses pnpm, strict TypeScript, Next.js App Router, PostgreSQL, Drizzle, Redis/BullMQ, Zod, Biome, Vitest, and Playwright. Dependencies are pinned in manifests/lockfile. Styling uses original CSS tokens and components. Structured logging is the starting point for future OpenTelemetry-compatible observability.
+The current foundation uses pnpm, strict TypeScript, Next.js App Router, PostgreSQL with the postgres driver and reviewed SQL migrations, Redis/BullMQ, Zod, Biome, Vitest, and Playwright. Dependencies are pinned in manifests/lockfile. Styling uses original CSS tokens and components. Structured logging is the starting point for future OpenTelemetry-compatible observability.
 
 ```text
 apps/

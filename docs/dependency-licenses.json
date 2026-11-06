@@ -20,40 +20,10 @@
       "repository": "git+https://github.com/biomejs/biome.git"
     },
     {
-      "name": "@drizzle-team/brocli",
-      "version": "0.10.2",
-      "license": "Apache-2.0",
-      "repository": "git+https://github.com/drizzle-team/brocli.git"
-    },
-    {
       "name": "@embedded-postgres/windows-x64",
       "version": "18.6.0-beta.19",
       "license": "MIT",
       "repository": "https://github.com/leinelissen/embedded-postgres"
-    },
-    {
-      "name": "@esbuild-kit/core-utils",
-      "version": "3.3.2",
-      "license": "MIT",
-      "repository": "esbuild-kit/core-utils"
-    },
-    {
-      "name": "@esbuild-kit/esm-loader",
-      "version": "2.6.5",
-      "license": "MIT",
-      "repository": "esbuild-kit/esm-loader"
-    },
-    {
-      "name": "@esbuild/win32-x64",
-      "version": "0.18.20",
-      "license": "MIT",
-      "repository": "https://github.com/evanw/esbuild"
-    },
-    {
-      "name": "@esbuild/win32-x64",
-      "version": "0.25.12",
-      "license": "MIT",
-      "repository": "git+https://github.com/evanw/esbuild.git"
     },
     {
       "name": "@esbuild/win32-x64",
@@ -218,12 +188,6 @@
       "repository": "git+https://github.com/web-platform-dx/baseline-browser-mapping.git"
     },
     {
-      "name": "buffer-from",
-      "version": "1.1.2",
-      "license": "MIT",
-      "repository": "LinusU/buffer-from"
-    },
-    {
       "name": "bullmq",
       "version": "6.7.1",
       "license": "MIT",
@@ -284,18 +248,6 @@
       "repository": "git://github.com/lovell/detect-libc.git"
     },
     {
-      "name": "drizzle-kit",
-      "version": "0.31.11",
-      "license": "MIT",
-      "repository": "git+https://github.com/drizzle-team/drizzle-orm.git"
-    },
-    {
-      "name": "drizzle-orm",
-      "version": "0.45.4",
-      "license": "Apache-2.0",
-      "repository": "git+https://github.com/drizzle-team/drizzle-orm.git"
-    },
-    {
       "name": "embedded-postgres",
       "version": "18.6.0-beta.19",
       "license": "MIT",
@@ -306,18 +258,6 @@
       "version": "2.3.2",
       "license": "MIT",
       "repository": "git+https://github.com/guybedford/es-module-lexer.git"
-    },
-    {
-      "name": "esbuild",
-      "version": "0.18.20",
-      "license": "MIT",
-      "repository": "https://github.com/evanw/esbuild"
-    },
-    {
-      "name": "esbuild",
-      "version": "0.25.12",
-      "license": "MIT",
-      "repository": "git+https://github.com/evanw/esbuild.git"
     },
     {
       "name": "esbuild",
@@ -348,12 +288,6 @@
       "version": "6.5.0",
       "license": "MIT",
       "repository": "git+https://github.com/thecodrr/fdir.git"
-    },
-    {
-      "name": "get-tsconfig",
-      "version": "4.14.3",
-      "license": "MIT",
-      "repository": "privatenumber/get-tsconfig"
     },
     {
       "name": "ioredis",
@@ -572,12 +506,6 @@
       "repository": "git+https://github.com/NodeRedis/redis-errors.git"
     },
     {
-      "name": "resolve-pkg-maps",
-      "version": "1.0.0",
-      "license": "MIT",
-      "repository": "privatenumber/resolve-pkg-maps"
-    },
-    {
       "name": "rolldown",
       "version": "1.2.16",
       "license": "MIT",
@@ -602,22 +530,10 @@
       "repository": "git+https://github.com/lovell/sharp.git"
     },
     {
-      "name": "source-map",
-      "version": "0.6.1",
-      "license": "BSD-3-Clause",
-      "repository": "http://github.com/mozilla/source-map.git"
-    },
-    {
       "name": "source-map-js",
       "version": "1.2.2",
       "license": "BSD-3-Clause",
       "repository": "7rulnik/source-map-js"
-    },
-    {
-      "name": "source-map-support",
-      "version": "0.5.21",
-      "license": "MIT",
-      "repository": "https://github.com/evanw/node-source-map-support"
     },
     {
       "name": "split2",

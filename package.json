@@ -18,7 +18,7 @@
     "build": "pnpm --filter @openhubpanel/web build",
     "start": "pnpm --filter @openhubpanel/web start",
     "typecheck": "tsc -p tsconfig.tools.json && pnpm -r typecheck",
-    "lint": "biome check .",
+    "lint": "biome check . --error-on-warnings",
     "format": "biome check --write .",
     "test": "vitest run",
     "test:db": "tsx scripts/test-db.ts",
@@ -28,7 +28,8 @@
     "infra:down": "docker compose --env-file .env -f infra/docker/compose.yml down",
     "setup:local": "node scripts/setup-env.mjs",
     "scan:secrets": "node scripts/scan-secrets.mjs",
-    "licenses:inventory": "node scripts/licenses.mjs"
+    "licenses:inventory": "node scripts/licenses.mjs",
+    "worker:dev": "pnpm --filter @openhubpanel/worker dev"
   },
   "devDependencies": {
     "@axe-core/playwright": "4.14.0",

@@ -19,21 +19,26 @@ export type Permission = z.infer<typeof permissionSchema>;
 
 export const connectorManifestSchema = z.strictObject({
   id: z.string().regex(/^[a-z][a-z0-9-]{1,63}$/),
-  name: z.string().min(1).max(80),
+  name: z.string().trim().min(1).max(80),
   contractVersion: z.literal("1.0"),
   resources: z
     .array(
       z.strictObject({
         id: z.string().regex(/^[a-z][a-z0-9-]{1,63}$/),
-        name: z.string().min(1).max(80),
+        name: z.string().trim().min(1).max(80),
         capabilities: z
           .array(z.enum(["list", "read", "update"]))
           .min(1)
-          .max(3),
+          .max(3)
+          .refine((items) => new Set(items).size === items.length, "Capabilities must be unique"),
       }),
     )
     .min(1)
-    .max(20),
+    .max(20)
+    .refine(
+      (items) => new Set(items.map((item) => item.id)).size === items.length,
+      "Resource IDs must be unique",
+    ),
 });
 export type ConnectorManifest = z.infer<typeof connectorManifestSchema>;
 

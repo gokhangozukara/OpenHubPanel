@@ -42,10 +42,29 @@ describe("browser request boundary", () => {
     expect(() => assertTrustedOrigin("https://panel.example", "https://panel.example")).not.toThrow();
   });
   it("rejects tokens of a different value or length", () => {
+    expect(safeTokenEqual("", "")).toBe(false);
     expect(safeTokenEqual("abc", "abc")).toBe(true);
     expect(safeTokenEqual("abc", "abcd")).toBe(false);
     expect(safeTokenEqual("abc", "abd")).toBe(false);
   });
+  it.each([
+    "https://panel.example/",
+    " https://panel.example",
+    "https://panel.example?",
+    "https://panel.example#",
+    "https://panel.example:443",
+  ])("rejects non-serialized browser origins (%s)", (origin) =>
+    expect(() => assertTrustedOrigin(origin, "https://panel.example")).toThrow("UNTRUSTED_ORIGIN"),
+  );
+  it.each([
+    "file:///",
+    "ftp://panel.example",
+    "https://user@panel.example",
+    "https://panel.example/path",
+    "not a URL",
+  ])("fails closed for invalid trusted configuration (%s)", (trusted) =>
+    expect(() => assertTrustedOrigin(trusted, trusted)).toThrow("UNTRUSTED_ORIGIN"),
+  );
 });
 
 describe("production configuration", () => {
@@ -73,4 +92,10 @@ describe("production configuration", () => {
   it("accepts complete production configuration", () => {
     expect(parseRuntimeConfig(config, true).APP_ORIGIN).toBe(config.APP_ORIGIN);
   });
+  it.each(["file:///", "ftp://panel.example"])(
+    "rejects non-web origins even during development (%s)",
+    (origin) => {
+      expect(() => parseRuntimeConfig({ ...config, APP_ORIGIN: origin }, false)).toThrow("HTTP or HTTPS");
+    },
+  );
 });

@@ -24,7 +24,7 @@ npx --yes pnpm@12.18.0 check
 npx --yes pnpm@12.18.0 test:db
 npx --yes pnpm@12.18.0 exec playwright install chromium
 npx --yes pnpm@12.18.0 test:e2e
-npx --yes pnpm@12.18.0 audit --prod --audit-level=high
+npx --yes pnpm@12.18.0 audit --audit-level=moderate
 ```
 
 `test:db` starts a real, isolated PostgreSQL 18.6 process on a randomly selected loopback port. It generates credentials in memory, migrates a separate database, tests RLS through the unprivileged application login, and stops the process. Its local data stays under ignored `.local/`; no existing database is touched. Native binaries are supplied by the pinned development dependency `embedded-postgres`. Do not run it as root; CI uses a normal runner user.
@@ -41,6 +41,8 @@ npx --yes pnpm@12.18.0 infra:up
 ```
 
 The script preserves an existing `.env`. Docker Compose reads the root `.env`, binds database ports to loopback, and initializes only a new volume. The migration operator and application login are separate; application tables use `FORCE ROW LEVEL SECURITY`. The application role has no management writes yet and cannot update/delete audit records. Authentication and audited use-cases must be implemented before granting additional writes.
+
+Run `npx --yes pnpm@12.18.0 worker:dev` in a separate terminal after infrastructure starts. The worker loads the root `.env`; its Redis URL preserves database selection, encoded credentials, and TLS settings. It currently handles only diagnostic ping jobs.
 
 `infra:down` stops containers and preserves their named volumes. Changing `.env` does not rotate existing PostgreSQL/Redis credentials. Plan credential changes and backups explicitly. There is intentionally no automatic data-destroying reset command.
 

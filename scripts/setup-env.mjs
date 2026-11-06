@@ -5,10 +5,10 @@ const admin = randomBytes(32).toString("hex");
 const app = randomBytes(32).toString("hex");
 const redis = randomBytes(32).toString("hex");
 const values = {
-  APP_ORIGIN: "http://localhost:3000",
-  DATABASE_URL: `postgresql://openhub_app:${app}@localhost:54329/openhubpanel`,
-  MIGRATION_DATABASE_URL: `postgresql://openhub_admin:${admin}@localhost:54329/openhubpanel`,
-  REDIS_URL: `redis://:${redis}@localhost:63799`,
+  APP_ORIGIN: "http://127.0.0.1:3000",
+  DATABASE_URL: `postgresql://openhub_app:${app}@127.0.0.1:54329/openhubpanel`,
+  MIGRATION_DATABASE_URL: `postgresql://openhub_admin:${admin}@127.0.0.1:54329/openhubpanel`,
+  REDIS_URL: `redis://:${redis}@127.0.0.1:63799`,
   POSTGRES_PASSWORD: admin,
   APP_DATABASE_PASSWORD: app,
   REDIS_PASSWORD: redis,

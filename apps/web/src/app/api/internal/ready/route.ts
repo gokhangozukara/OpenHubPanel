@@ -8,7 +8,7 @@ export async function GET(request: Request) {
     token.length < 32 ||
     !safeTokenEqual(request.headers.get("authorization") ?? "", `Bearer ${token}`)
   ) {
-    return new Response(null, { status: 404 });
+    return new Response(null, { status: 404, headers: { "Cache-Control": "no-store" } });
   }
   try {
     const ready = await checkReadiness();

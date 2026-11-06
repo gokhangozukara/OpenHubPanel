@@ -25,11 +25,11 @@ Initial implementation: pnpm monorepo, Next.js interface, synthetic preview, Pos
 
 ## Verification evidence
 
-The language/naming update passed 25 unit tests, 10 real PostgreSQL checks, and 11 Chromium E2E tests locally. DB checks cover application/RLS boundaries, workspace impersonation, transaction context, audit actor/foreign-key/rollback, and revoked membership. Browser checks include all three interface languages, persistence, browser-language fallback, blocked localStorage, unchanged typed data/workspace, and German mobile accessibility/layout. Type checks, lint, and production build are also verified before committing.
+The [foundation review](docs/research/foundation-review.md) passed 43 unit/tooling tests, 10 real PostgreSQL checks, and 13 Chromium E2E tests locally. DB checks cover application/RLS boundaries, workspace impersonation, transaction context, audit actor/foreign-key/rollback, and revoked membership. Browser checks include all three interface languages, persistence, browser-language fallback, blocked localStorage, unchanged typed data/workspace, and German mobile accessibility/layout. Type checks, lint, and production build are also verified before committing.
 
-The prior [code CI run](https://github.com/gokhangozukara/OpenHubPanel/actions/runs/42243621756) passed checks/container jobs. It verified production preview 404 even with the flag, unauthorized readiness 404, healthy DB/Redis readiness 200, and Redis outage 503.
+The prior [code CI run](https://github.com/gokhangozukara/OpenHubPanel/actions/runs/42248895932) passed checks/container jobs. It verified production preview 404 even with the flag, unauthorized readiness 404, healthy DB/Redis readiness 200, and Redis outage 503.
 
-The license inventory records 119 installed package/version entries. Gitleaks scans source/history with one exact documented historical false positive for a deliberately invalid CI token. Results are point-in-time evidence, not security guarantees.
+The license inventory records 105 installed package/version entries. Gitleaks scans source/history with one exact documented historical false positive for a deliberately invalid CI token. Results are point-in-time evidence, not security guarantees.
 
 ## Limits and next work
 

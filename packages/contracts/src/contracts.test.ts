@@ -23,4 +23,23 @@ describe("connector trust boundary", () => {
   it("rejects a client-supplied tenant and missing concurrency proof", () => {
     expect(articleUpdateSchema.safeParse({ title: "Changed", workspaceId: "other" }).success).toBe(false);
   });
+  it("rejects duplicate resource IDs instead of choosing an ambiguous definition", () => {
+    const first = manifest.resources[0];
+    expect(connectorManifestSchema.safeParse({ ...manifest, resources: [first, first] }).success).toBe(false);
+  });
+  it("rejects repeated capabilities and blank display names", () => {
+    expect(
+      connectorManifestSchema.safeParse({
+        ...manifest,
+        resources: [{ id: "articles", name: "Articles", capabilities: ["read", "read"] }],
+      }).success,
+    ).toBe(false);
+    expect(connectorManifestSchema.safeParse({ ...manifest, name: "   " }).success).toBe(false);
+    expect(
+      connectorManifestSchema.safeParse({
+        ...manifest,
+        resources: [{ id: "articles", name: "   ", capabilities: ["read"] }],
+      }).success,
+    ).toBe(false);
+  });
 });

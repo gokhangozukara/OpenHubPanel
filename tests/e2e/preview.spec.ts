@@ -64,4 +64,37 @@ test("public health does not disclose infrastructure or credentials", async ({ r
   expect(response.headers()["x-content-type-options"]).toBe("nosniff");
   const management = await request.get("/api/v1");
   expect(management.status()).toBe(503);
+  const readiness = await request.get("/api/internal/ready");
+  expect(readiness.status()).toBe(404);
+  expect(readiness.headers()["cache-control"]).toBe("no-store");
+});
+
+test("theme toggle follows the effective system theme", async ({ page }) => {
+  await page.emulateMedia({ colorScheme: "dark" });
+  await page.goto("/preview");
+  await page.getByRole("button", { name: "Settings", exact: true }).click();
+  await page.getByRole("button", { name: "System", exact: true }).click();
+  await expect(page.locator(".panel")).toHaveCSS("color-scheme", "dark");
+  await page.getByRole("button", { name: "Switch to light theme" }).click();
+  await expect(page.locator(".panel")).toHaveAttribute("data-theme", "light");
+  await page.getByRole("button", { name: "System", exact: true }).click();
+  await page.emulateMedia({ colorScheme: "light" });
+  await page.getByRole("button", { name: "Switch to dark theme" }).click();
+  await expect(page.locator(".panel")).toHaveAttribute("data-theme", "dark");
+});
+
+test("mobile drawer isolates keyboard focus and Escape restores its trigger", async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto("/preview");
+  await expect(page.locator(".sidebar")).toHaveAttribute("inert", "");
+  await page.getByRole("button", { name: "Open menu" }).click();
+  await expect(page.locator(".main-shell")).toHaveAttribute("inert", "");
+  await expect(page.locator("nav").getByRole("button", { name: "Overview" })).toBeFocused();
+  await page.keyboard.press("Escape");
+  await expect(page.getByRole("button", { name: "Open menu" })).toBeFocused();
+  await expect(page.locator(".sidebar")).toHaveAttribute("inert", "");
+  await page.getByRole("button", { name: "Open menu" }).click();
+  await page.setViewportSize({ width: 1280, height: 900 });
+  await expect(page.locator(".main-shell")).not.toHaveAttribute("inert", "");
+  await expect(page.locator(".sidebar-backdrop")).not.toBeVisible();
 });

@@ -31,6 +31,7 @@ export function LocaleProvider({
     }
     const secure = location.protocol === "https:" ? "; Secure" : "";
     try {
+      // biome-ignore lint/suspicious/noDocumentCookie: Cosmetic preference only; document.cookie supports browsers without Cookie Store.
       document.cookie = `${localeCookie}=${next}; Path=/; Max-Age=31536000; SameSite=Lax${secure}`;
     } catch {
       // The current selection also works when cookies are blocked.

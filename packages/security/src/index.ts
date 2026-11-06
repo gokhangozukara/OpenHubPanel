@@ -40,14 +40,22 @@ export function canAssignRole(actorRole: string, targetRole: string): boolean {
 
 export function assertTrustedOrigin(origin: string | null, trustedOrigin: string): void {
   if (!origin || origin === "null") throw new Error("UNTRUSTED_ORIGIN");
-  const trusted = new URL(trustedOrigin);
+  let trusted: URL;
   let candidate: URL;
   try {
+    trusted = new URL(trustedOrigin);
     candidate = new URL(origin);
   } catch {
     throw new Error("UNTRUSTED_ORIGIN");
   }
   if (
+    !["http:", "https:"].includes(trusted.protocol) ||
+    trusted.username ||
+    trusted.password ||
+    trusted.pathname !== "/" ||
+    trusted.search ||
+    trusted.hash ||
+    origin !== candidate.origin ||
     candidate.origin !== trusted.origin ||
     candidate.username ||
     candidate.password ||
@@ -60,6 +68,7 @@ export function assertTrustedOrigin(origin: string | null, trustedOrigin: string
 }
 
 export function safeTokenEqual(actual: string, expected: string): boolean {
+  if (!actual || !expected) return false;
   const a = Buffer.from(actual);
   const b = Buffer.from(expected);
   return a.length === b.length && timingSafeEqual(a, b);
@@ -81,6 +90,7 @@ export function parseRuntimeConfig(input: Record<string, string | undefined>, pr
     );
   const config = parsed.data;
   const origin = new URL(config.APP_ORIGIN);
+  if (!["http:", "https:"].includes(origin.protocol)) throw new Error("APP_ORIGIN requires HTTP or HTTPS");
   if (origin.username || origin.password || origin.pathname !== "/" || origin.search || origin.hash)
     throw new Error("APP_ORIGIN must be an origin");
   if (production && origin.protocol !== "https:") throw new Error("Production APP_ORIGIN requires HTTPS");

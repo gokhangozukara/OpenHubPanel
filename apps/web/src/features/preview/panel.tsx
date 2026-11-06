@@ -34,6 +34,7 @@ import {
 import { useEffect, useRef, useState } from "react";
 import { LanguageSelector, useLocale } from "@/i18n/provider";
 import { activities, applications, members, type PreviewApplication, workspaces } from "./fixtures";
+import { useMediaQuery } from "./use-media-query";
 
 const sections = [
   { id: "overview", name: "Overview", icon: LayoutDashboard },
@@ -165,6 +166,11 @@ export function PreviewPanel() {
   const [workspace, setWorkspace] = useState("atlas");
   const [query, setQuery] = useState("");
   const [theme, setTheme] = useState<Theme>("light");
+  const systemDark = useMediaQuery("(prefers-color-scheme: dark)");
+  const mobile = useMediaQuery("(max-width: 850px)");
+  const dark = theme === "dark" || (theme === "system" && systemDark);
+  const menuToggle = useRef<HTMLButtonElement>(null);
+  const sidebar = useRef<HTMLElement>(null);
   const [mobileOpen, setMobileOpen] = useState(false);
   const [modal, setModal] = useState<Modal>(null);
   const [notice, setNotice] = useState("");
@@ -179,6 +185,19 @@ export function PreviewPanel() {
   const events = activities.filter((event) => event.workspace === workspace);
   const isOwner = workspace === "atlas";
   const connectedCount = apps.filter((app) => app.status === "connected").length;
+
+  useEffect(() => {
+    if (!mobile || !mobileOpen) return;
+    sidebar.current?.querySelector<HTMLButtonElement>("nav button")?.focus();
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setMobileOpen(false);
+    };
+    window.addEventListener("keydown", closeOnEscape);
+    return () => {
+      window.removeEventListener("keydown", closeOnEscape);
+      menuToggle.current?.focus();
+    };
+  }, [mobile, mobileOpen]);
 
   useEffect(() => {
     try {
@@ -227,7 +246,7 @@ export function PreviewPanel() {
       <a href="#main-content" className="skip-link">
         {t("Skip to content")}
       </a>
-      {mobileOpen && (
+      {mobile && mobileOpen && (
         <button
           type="button"
           className="sidebar-backdrop"
@@ -235,7 +254,12 @@ export function PreviewPanel() {
           onClick={() => setMobileOpen(false)}
         />
       )}
-      <aside className={`sidebar ${mobileOpen ? "is-open" : ""}`} aria-label={t("Main menu")}>
+      <aside
+        ref={sidebar}
+        inert={mobile && !mobileOpen}
+        className={`sidebar ${mobileOpen ? "is-open" : ""}`}
+        aria-label={t("Main menu")}
+      >
         <a href="/" className="brand">
           <span className="brand-symbol">
             <Blocks size={21} aria-hidden="true" />
@@ -317,11 +341,12 @@ export function PreviewPanel() {
         </div>
       </aside>
 
-      <div className="main-shell">
+      <div className="main-shell" inert={mobile && mobileOpen}>
         <header className="topbar">
           <div className="breadcrumb">
             <button
               className="icon-button mobile-toggle"
+              ref={menuToggle}
               type="button"
               aria-label={t("Open menu")}
               aria-expanded={mobileOpen}
@@ -343,10 +368,10 @@ export function PreviewPanel() {
             <button
               className="icon-button"
               type="button"
-              aria-label={theme === "dark" ? t("Switch to light theme") : t("Switch to dark theme")}
-              onClick={() => changeTheme(theme === "dark" ? "light" : "dark")}
+              aria-label={dark ? t("Switch to light theme") : t("Switch to dark theme")}
+              onClick={() => changeTheme(dark ? "light" : "dark")}
             >
-              {theme === "dark" ? <Sun size={18} /> : <Moon size={18} />}
+              {dark ? <Sun size={18} /> : <Moon size={18} />}
             </button>
             <span className="avatar small-avatar teal" title={t("Demo Admin")}>
               DA
