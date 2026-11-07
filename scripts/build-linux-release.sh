@@ -31,6 +31,8 @@ npm exec --yes --package=pnpm@12.18.0 -- pnpm exec esbuild scripts/operator-boot
 mkdir -p .next-release/connectors
 cp infra/connectors/hubstag.cjs .next-release/connectors/hubstag.cjs
 cp infra/connectors/legacy-login.cjs .next-release/connectors/legacy-login.cjs
+cp infra/connectors/legacy-session.cjs .next-release/connectors/legacy-session.cjs
+cp infra/connectors/legacy-session-browser.js .next-release/connectors/legacy-session-browser.js
 cp scripts/operator-backup.mjs .next-release/operator-backup.mjs
 sha256sum "$source_archive" | cut -d ' ' -f1 > .next-release/SOURCE_ARCHIVE_SHA256
 tar -czf "$output_archive" -C .next-release .

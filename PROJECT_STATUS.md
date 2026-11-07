@@ -8,22 +8,22 @@ Repository: [gokhangozukara/OpenHubPanel](https://github.com/gokhangozukara/Open
 
 Initial implementation: pnpm monorepo, Next.js interface, synthetic preview, PostgreSQL RLS, shared security/contracts, and automated checks. Full P0 and production management are incomplete.
 
-The owner's explicitly requested first live installation now has a separate [single-owner adapter](docs/deployment/owner-installation.md): Argon2id password plus required TOTP, opaque revocable sessions, restricted recovery/manual re-enrollment, native forms for six configuration sections, version preconditions, per-save step-up, persistent idempotency, transactional host audit and encrypted identity backup/restore. It reads real application metadata through a narrow host connector. Specialized push/music/Studio tools retain their existing interfaces and authentication. This is a single-instance compatibility delivery, not the general multi-client P0. The owner's interactive activation is separate from automated fixture enrollment.
+The owner's explicitly requested first live installation now has a separate [single-owner adapter](docs/deployment/owner-installation.md): Character selection, username and six-character-minimum Argon2id passwords, optional TOTP at every enabled sign-in, IP allowlists, opaque revocable sessions, restricted recovery/manual re-enrollment, native forms for six configuration sections, version preconditions, per-save step-up, persistent idempotency, transactional host audit and encrypted identity backup/restore. It reads real application metadata through a narrow host connector. Specialized push/music/Studio tools retain their existing interfaces and authentication. This is a single-instance compatibility delivery, not the general multi-client P0. The owner's interactive activation is separate from automated fixture enrollment.
 
-| Area                   | Status                                                                                                                 |
-| ---------------------- | ---------------------------------------------------------------------------------------------------------------------- |
-| Identity/license       | OpenHubPanel; MIT; Gokhan Gozukara                                                                                     |
-| Repository conventions | English names, code, comments, and documentation                                                                       |
-| Interface languages    | English, Turkish, German; shared catalogs, remembered selection                                                        |
-| Foundation             | Node 24, pnpm 12.18.0, strict TypeScript, six app/package workspaces, pinned lockfile                                  |
-| Database               | Separate application login, FORCE RLS, membership and append-only audit foundation                                     |
-| Infrastructure         | Pinned images, PostgreSQL/Redis Compose, safe health/protected readiness; minimal ping worker                          |
-| Interface              | Compact workspace, grouped/collapsible sidebar, scoped keyboard search, application shortcuts/filters, three languages |
-| Preview boundary       | Synthetic only; no external writes/invitations; production preview disabled, management API 503                        |
-| Real authentication    | Required password/TOTP and server sessions for the single-owner adapter; general multi-client identity is incomplete   |
-| Real management        | Six native owner configuration sections; general workspace/member management remains preview-only                      |
-| Connectors/outbox      | Compatible host adapter with audited writes and persistent intents; general connector contract is incomplete           |
-| Release/pilot          | Single-owner installation package verified; deployment/owner activation tracked separately from the general release    |
+| Area                   | Status                                                                                                                                     |
+| ---------------------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
+| Identity/license       | OpenHubPanel; MIT; Gokhan Gozukara                                                                                                         |
+| Repository conventions | English names, code, comments, and documentation                                                                                           |
+| Interface languages    | English, Turkish, German; shared catalogs, remembered selection                                                                            |
+| Foundation             | Node 24, pnpm 12.18.0, strict TypeScript, six app/package workspaces, pinned lockfile                                                      |
+| Database               | Separate application login, FORCE RLS, membership and append-only audit foundation                                                         |
+| Infrastructure         | Pinned images, PostgreSQL/Redis Compose, safe health/protected readiness; minimal ping worker                                              |
+| Interface              | Compact workspace, grouped/collapsible sidebar, scoped keyboard search, application shortcuts/filters, three languages                     |
+| Preview boundary       | Synthetic only; no external writes/invitations; production preview disabled, management API 503                                            |
+| Real authentication    | Character/password, optional TOTP, IP policy and server sessions for the single-owner adapter; general multi-client identity is incomplete |
+| Real management        | Six native owner configuration sections; general workspace/member management remains preview-only                                          |
+| Connectors/outbox      | Compatible host adapter with audited writes and persistent intents; general connector contract is incomplete                               |
+| Release/pilot          | Single-owner installation deployed; owner-requested sign-in preferences are being verified for the next update                             |
 
 ## Verification evidence
 

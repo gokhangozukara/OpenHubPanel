@@ -53,6 +53,31 @@ export function migrate(db: DatabaseSync) {
       .some((row) => row.name === "recovery_required")
   )
     db.exec("ALTER TABLE operator_user ADD COLUMN recovery_required INTEGER NOT NULL DEFAULT 0");
+  const columns = new Set(
+    db
+      .prepare("PRAGMA table_info(operator_user)")
+      .all()
+      .map((row) => row.name),
+  );
+  for (const [name, definition] of Object.entries({
+    username: "TEXT NOT NULL DEFAULT ''",
+    character_hash: "TEXT NOT NULL DEFAULT ''",
+    mfa_enabled: "INTEGER NOT NULL DEFAULT 1",
+    ip_allowlist: "TEXT NOT NULL DEFAULT '[]'",
+    security_version: "INTEGER NOT NULL DEFAULT 1",
+  })) {
+    if (!columns.has(name)) db.exec(`ALTER TABLE operator_user ADD COLUMN ${name} ${definition}`);
+  }
+  const challengeColumns = new Set(
+    db
+      .prepare("PRAGMA table_info(operator_challenge)")
+      .all()
+      .map((row) => row.name),
+  );
+  if (!challengeColumns.has("metadata"))
+    db.exec("ALTER TABLE operator_challenge ADD COLUMN metadata TEXT NOT NULL DEFAULT '{}'");
+  if (!challengeColumns.has("ip"))
+    db.exec("ALTER TABLE operator_challenge ADD COLUMN ip TEXT NOT NULL DEFAULT 'local'");
 }
 export function transaction<T>(db: DatabaseSync, action: () => T): T {
   db.exec("BEGIN IMMEDIATE");

@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { execFileSync, spawn } from "node:child_process";
-import { randomBytes } from "node:crypto";
+import { createHash, randomBytes } from "node:crypto";
 import { cpSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { createServer, request as httpRequest } from "node:http";
 import { createServer as createSecureServer } from "node:https";
@@ -134,6 +134,8 @@ child.stderr.on("data", (chunk) => {
   logs += chunk.toString();
 });
 let browser;
+let activePage;
+const rejectedRequests = [];
 try {
   for (let attempt = 0; attempt < 60; attempt++) {
     try {
@@ -147,11 +149,23 @@ try {
   browser = await chromium.launch();
   const context = await browser.newContext({ ignoreHTTPSErrors: true, locale: "en-US" });
   const page = await context.newPage();
+  activePage = page;
+  page.on("response", (response) => {
+    if (response.status() >= 400 && response.url().includes("/api/"))
+      rejectedRequests.push({ path: new URL(response.url()).pathname, status: response.status() });
+  });
   const errors = [];
   page.on("pageerror", (error) => errors.push(error.message));
   const response = await page.goto(bootstrapURL);
   assert.equal(response.status(), 200);
   assert.ok(!response.headers()["content-security-policy"].includes("unsafe-inline"));
+  await expect(page.getByRole("heading", { name: "Choose your sign-in character" })).toBeVisible();
+  await expect(
+    page.getByRole("button", { name: /^(Camel|Duck|Lion|Fox|Panda|Owl|Rabbit|Turtle)$/ }),
+  ).toHaveCount(8);
+  await expect(page.getByLabel("Username", { exact: true })).toHaveCount(0);
+  await page.screenshot({ path: path.join(output, "character-choice.png"), fullPage: true });
+  await page.getByRole("button", { name: "Camel", exact: true }).click();
   await expect(page.getByRole("heading", { name: "Activate your live account" })).toBeVisible();
   assert.equal(
     (await context.request.get(`${origin}/openhub/api/operator/settings/example/notes`)).status(),
@@ -166,8 +180,25 @@ try {
     ).status(),
     403,
   );
-  const password = `Synthetic browser owner ${randomBytes(24).toString("hex")}`;
-  await page.getByLabel("Choose a password (at least 15 characters)", { exact: true }).fill(password);
+  let password;
+  for (let attempt = 0; attempt < 10; attempt++) {
+    const candidate = randomBytes(6).toString("base64url").slice(0, 6);
+    const sha = createHash("sha1").update(candidate).digest("hex").toUpperCase();
+    const response = await fetch(`https://api.pwnedpasswords.com/range/${sha.slice(0, 5)}`);
+    if (
+      response.ok &&
+      !(await response.text()).split(/\r?\n/).some((line) => line.split(":")[0] === sha.slice(5))
+    ) {
+      password = candidate;
+      break;
+    }
+  }
+  if (!password) throw new Error("No uncompromised synthetic six-character test password");
+  await page.getByLabel("Choose a password (at least 6 characters)", { exact: true }).fill(password);
+  await expect(page.getByLabel("Choose a password (at least 6 characters)", { exact: true })).toHaveAttribute(
+    "minlength",
+    "6",
+  );
   await page.getByRole("button", { name: "Continue", exact: true }).click();
   await expect(page.getByRole("heading", { name: "Set up your authenticator" })).toBeVisible({
     timeout: 15000,
@@ -218,7 +249,7 @@ try {
   const oldSession = oldCookies.find((cookie) => cookie.name === "__Host-hubpanel_session");
   assert.ok(oldSession?.secure && oldSession?.httpOnly && oldSession?.path === "/");
   await page.getByRole("button", { name: "Sign out on all devices", exact: true }).click();
-  await expect(page.getByRole("heading", { name: "Sign in", exact: true })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Choose your character", exact: true })).toBeVisible();
   assert.equal(
     (
       await context.request.get(`${origin}/openhub/api/operator/settings/example/notes`, {
@@ -227,7 +258,17 @@ try {
     ).status(),
     401,
   );
-  await page.getByLabel("Email", { exact: true }).fill("owner@example.invalid");
+  const authStatus = await (await context.request.get(`${origin}/openhub/api/operator/auth/status`)).json();
+  const bypass = await context.request.post(`${origin}/openhub/api/operator/auth/login`, {
+    data: { username: "owner", password },
+    headers: { origin, "x-csrf-token": authStatus.csrf },
+  });
+  assert.equal((await bypass.json()).error, "CHARACTER_REQUIRED");
+  await page.getByRole("button", { name: "Duck", exact: true }).click();
+  await expect(page.locator(".owner-auth .owner-error")).toContainText("That is not your character");
+  await expect(page.getByLabel("Password", { exact: true })).toHaveCount(0);
+  await page.getByRole("button", { name: "Camel", exact: true }).click();
+  await page.getByLabel("Username", { exact: true }).fill("owner");
   await page.getByLabel("Password", { exact: true }).fill(password);
   await page.getByRole("button", { name: "Continue", exact: true }).click();
   await page.getByRole("button", { name: "Use a recovery code", exact: true }).click();
@@ -246,6 +287,60 @@ try {
     .fill(await generate({ secret: replacementSecret }));
   await page.getByRole("button", { name: "Verify and continue", exact: true }).click();
   await expect(page.getByRole("heading", { name: "Save your recovery codes", exact: true })).toBeVisible();
+  await page.getByRole("button", { name: "I saved my codes. Open my panel", exact: true }).click();
+  await page.getByRole("button", { name: "Security and activity", exact: true }).click();
+  const protection = page.locator(".owner-security");
+  await expect(protection.getByLabel("Username", { exact: true })).toHaveValue("owner");
+  await protection.getByLabel("Google Authenticator on every sign-in (optional)", { exact: true }).uncheck();
+  await protection.getByLabel("Restrict sign-in to allowed IP addresses", { exact: true }).check();
+  await protection
+    .getByLabel("Allowed IP addresses or CIDR ranges (one per line)", { exact: true })
+    .fill("198.51.100.2");
+  await protection.getByLabel("Current password", { exact: true }).fill(password);
+  const enrolledStep = Math.floor(Date.now() / 30000);
+  console.log(
+    "Production browser: character gate and six-character password passed; checking optional MFA and IP settings.",
+  );
+  while (Math.floor(Date.now() / 30000) === enrolledStep)
+    await new Promise((resolve) => setTimeout(resolve, 500));
+  await protection
+    .getByLabel("Confirm with a new authenticator code", { exact: true })
+    .fill(await generate({ secret: replacementSecret }));
+  await protection.getByRole("button", { name: "Save sign-in settings", exact: true }).click();
+  await expect(protection.getByRole("alert")).toContainText("Your current IP must be included");
+  await protection.getByRole("button", { name: "Add my current IP", exact: true }).click();
+  await protection.getByLabel("Username", { exact: true }).fill("owner_test");
+  await protection.getByRole("button", { name: "Fox", exact: true }).click();
+  await protection
+    .getByLabel("Confirm with a new authenticator code", { exact: true })
+    .fill(await generate({ secret: replacementSecret }));
+  await protection.getByRole("button", { name: "Save sign-in settings", exact: true }).click();
+  await expect(page.getByRole("heading", { name: "Choose your character", exact: true })).toBeVisible();
+  await page.getByRole("button", { name: "Fox", exact: true }).click();
+  await page.getByLabel("Username", { exact: true }).fill("owner_test");
+  await page.getByLabel("Password", { exact: true }).fill(password);
+  await page.getByRole("button", { name: "Continue", exact: true }).click();
+  await expect(page.getByRole("heading", { name: "Applications", exact: true })).toBeVisible();
+  const updatedStatus = await (
+    await context.request.get(`${origin}/openhub/api/operator/auth/status`)
+  ).json();
+  assert.equal(updatedStatus.profile.mfaEnabled, false);
+  assert.equal(
+    (
+      await context.request.get(`${origin}/openhub/api/operator/settings/example/notes`, {
+        headers: { "x-openhub-client-ip": "198.18.0.99" },
+      })
+    ).status(),
+    200,
+  );
+  await page.getByRole("button", { name: "Manage application", exact: true }).click();
+  await page.getByRole("button", { name: "Notes", exact: true }).click();
+  await page
+    .getByLabel("Private notes", { exact: true })
+    .fill("Six-character password confirmation with optional MFA disabled");
+  await page.getByLabel("Confirm with your password", { exact: true }).fill(password);
+  await page.getByRole("button", { name: "Save changes", exact: true }).click();
+  await expect(page.getByText("Saved and recorded in the activity history.", { exact: true })).toBeVisible();
   const backupEnv = {
     ...env,
     OPERATOR_BACKUP_KEY: randomBytes(32).toString("hex"),
@@ -292,6 +387,10 @@ try {
           "logout-all and old-session rejection",
           "restricted recovery and replacement enrollment",
           "encrypted snapshot and restore with old authority revoked",
+          "eight animal choices and no password attempt before the correct choice",
+          "six-character password activation and sign-in",
+          "optional MFA controls and password-confirmed native writes",
+          "IP restriction settings and self-lockout rejection",
         ],
         browserErrors: errors,
       },
@@ -301,12 +400,25 @@ try {
   );
   console.log("Production owner browser checks passed. Evidence:", output);
 } catch (error) {
+  if (activePage && !activePage.isClosed()) {
+    await activePage.screenshot({ path: path.join(output, "failure.png"), fullPage: true });
+    writeFileSync(
+      path.join(output, "failure-state.json"),
+      JSON.stringify(
+        { url: activePage.url(), text: await activePage.locator("body").textContent(), rejectedRequests },
+        null,
+        2,
+      ),
+    );
+  }
   writeFileSync(path.join(output, "server.log"), logs);
   throw error;
 } finally {
   await browser?.close();
-  child.kill();
-  await new Promise((resolve) => child.once("exit", resolve));
+  if (child.exitCode === null && child.signalCode === null) {
+    child.kill();
+    await new Promise((resolve) => child.once("exit", resolve));
+  }
   await new Promise((resolve) => proxy.close(resolve));
   await new Promise((resolve) => upstream.close(resolve));
   db.close();

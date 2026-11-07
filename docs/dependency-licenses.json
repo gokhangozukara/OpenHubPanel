@@ -752,6 +752,12 @@
       "repository": "git://github.com/whitequark/ipaddr.js"
     },
     {
+      "name": "ipaddr.js",
+      "version": "2.5.0",
+      "license": "MIT",
+      "repository": "git+https://github.com/whitequark/ipaddr.js.git"
+    },
+    {
       "name": "is-fullwidth-code-point",
       "version": "3.0.0",
       "license": "MIT",

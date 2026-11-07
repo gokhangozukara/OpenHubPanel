@@ -16,6 +16,7 @@
     "@openhubpanel/observability": "workspace:*",
     "@openhubpanel/security": "workspace:*",
     "ioredis": "6.0.0",
+    "ipaddr.js": "2.5.0",
     "jose": "6.2.15",
     "lucide-react": "1.70.0",
     "next": "16.4.5",

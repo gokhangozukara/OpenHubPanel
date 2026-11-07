@@ -45,6 +45,13 @@ export async function body(request: Request): Promise<Record<string, unknown>> {
 export function rejection(error: unknown) {
   const message = error instanceof Error ? error.message : "UNAVAILABLE";
   const names = new Set([
+    "INVALID_CHARACTER",
+    "CHARACTER_INCORRECT",
+    "CHARACTER_REQUIRED",
+    "INVALID_USERNAME",
+    "INVALID_IP_RULES",
+    "IP_NOT_ALLOWED",
+    "IP_WOULD_LOCK_OUT",
     "UNAUTHENTICATED",
     "INVALID_CREDENTIALS",
     "INVALID_CODE",
@@ -65,7 +72,7 @@ export function rejection(error: unknown) {
   const status =
     code === "UNAUTHENTICATED"
       ? 401
-      : code === "FORBIDDEN" || message === "UNTRUSTED_ORIGIN"
+      : code === "FORBIDDEN" || code === "IP_NOT_ALLOWED" || message === "UNTRUSTED_ORIGIN"
         ? 403
         : code === "RATE_LIMITED"
           ? 429

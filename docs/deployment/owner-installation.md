@@ -4,10 +4,10 @@ This is the explicitly requested first owner's compatibility deployment (ADR-007
 
 ## Delivered behavior
 
-- An independent account with an Argon2id password, mandatory TOTP and hashed, revocable opaque sessions. No management data before factor verification. Fifteen-minute idle and eight-hour absolute session limits.
+- An independent account with an Argon2id password, optional TOTP at every sign-in when enabled and hashed, revocable opaque sessions. No management data before factor verification. Fifteen-minute idle and eight-hour absolute session limits.
 - Trusted-console, fifteen-minute, one-use activation. The owner chooses the password and enrolls their own authenticator. Eight random 256-bit recovery codes are displayed once; password plus a recovery code permits only factor replacement.
 - Real application catalog and configuration probes through a narrow loopback connector. No direct source-database mount or credential-table access by the web process.
-- Native advertising, pop-up, announcement/maintenance, version, subscription and private-note forms. Explicit version preconditions, per-save TOTP, persistent request IDs and atomic host-side audit. Conflicts do not overwrite another save. Unknown results are reconciled, not blindly resubmitted.
+- Native advertising, pop-up, announcement/maintenance, version, subscription and private-note forms. Explicit version preconditions, per-save TOTP or password confirmation, persistent request IDs and atomic host-side audit. Conflicts do not overwrite another save. Unknown results are reconciled, not blindly resubmitted.
 - Security/configuration history, password change and logout from all native sessions. Password changes revoke sessions and pending challenges.
 - English, Turkish and German; responsive layouts. Studio, push delivery and the specialized music editor retain their existing tools and authentication. They are links to existing management, not native rewrites or new SSO.
 
@@ -79,3 +79,7 @@ Run type checks, lint, unit/integration tests and the source/history/dependency 
 Before cutover, use the host SQLite backup API, verify integrity, fingerprint all real public configurations, and preserve host source/proxy/service/environment and prior release. Live write checks use exactly one uniquely named synthetic application; remove that application afterward. Do not send a real push or alter a real app's maintenance, advertising, subscription or content settings as a deployment test.
 
 Rollback restores the saved host/proxy/service source and previous release pointer, validates the proxy and restarts only affected services. Never restore an old source database over legitimate newer writes just to remove OpenHubPanel. Keep native audit/idempotency tables and identity state; additive tables do not break the original editor. The first owner's interactive activation and acceptance are recorded separately from automated installation tests.
+
+## Owner-selected sign-in protection
+
+The owner explicitly changed the policy in ADR-008: first select the remembered animal from eight illustrated choices, then enter username/password (minimum six characters). A wrong character cannot reach password verification. Google Authenticator is optional in activation/settings, and is requested at every sign-in when enabled. Sign-in settings also support IPv4/IPv6 and CIDR allowlists, check every protected request and prevent excluding the current IP. Saving protection changes revokes existing sessions. Trust Cloudflare client headers only from its published proxy ranges; the native upstream receives an overwritten client-IP header.

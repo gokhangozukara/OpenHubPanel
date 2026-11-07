@@ -13,12 +13,25 @@ const express = require("express");
 const sqlite3 = require("sqlite3");
 const createConnector = require("../../infra/connectors/hubstag.cjs");
 const { safeNext } = require("../../infra/connectors/legacy-login.cjs");
+const trustedSession = require("../../infra/connectors/legacy-session.cjs");
 const sections = createConnector.sections as Record<string, [string, string, string][]>;
 let directory: string;
 let database: DatabaseSync;
 let server: Server;
 let base: string;
 let key: string;
+it("accepts the legacy session bridge only from loopback with the exact private token and actor", () => {
+  const make = (remoteAddress: string, actor: string, value: string) => ({
+    socket: { remoteAddress },
+    get: (name: string) =>
+      name === "x-openhub-actor" ? actor : name === "x-openhub-proxy-token" ? value : undefined,
+  });
+  const keyFile = path.join(directory, "connector.key");
+  expect(trustedSession(make("127.0.0.1", "test-owner", key), keyFile, "test-owner")).toBe(true);
+  expect(trustedSession(make("203.0.113.1", "test-owner", key), keyFile, "test-owner")).toBe(false);
+  expect(trustedSession(make("127.0.0.1", "different-owner", key), keyFile, "test-owner")).toBe(false);
+  expect(trustedSession(make("127.0.0.1", "test-owner", `${key}x`), keyFile, "test-owner")).toBe(false);
+});
 it("keeps legacy editor sign-in destinations local and narrowly allowlisted", () => {
   expect(safeNext("/app/example?tab=push")).toBe("/app/example?tab=push");
   expect(safeNext("/app/example?tab=content")).toBe("/app/example?tab=content");

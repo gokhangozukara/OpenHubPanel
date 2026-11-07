@@ -1,4 +1,5 @@
 import { cookies } from "next/headers";
+import { clientIp } from "@/server/operator/access";
 import { requireSession, sessionCookie } from "@/server/operator/auth";
 import { readOperatorCatalog } from "@/server/operator/connector";
 import { enabled } from "@/server/operator/store";
@@ -10,7 +11,7 @@ export async function GET(_request: Request, context: { params: Promise<{ id: st
   let authenticated = false;
   if (enabled()) {
     try {
-      requireSession((await cookies()).get(sessionCookie)?.value);
+      requireSession((await cookies()).get(sessionCookie)?.value, clientIp(_request.headers));
       authenticated = true;
     } catch {
       /* No data without native MFA. */

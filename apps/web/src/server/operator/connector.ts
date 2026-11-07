@@ -1,6 +1,6 @@
 import type { PilotApplication } from "../pilot/catalog";
-import { requireSession, totpStep } from "./auth";
-import { digest, event, limit, now, state, transaction, unseal } from "./store";
+import { commitStepUp, prepareStepUp, requireSession } from "./auth";
+import { digest, event, now, state, transaction } from "./store";
 
 function origin() {
   const url = new URL(process.env.PILOT_UPSTREAM_ORIGIN ?? "http://127.0.0.1:3046");
@@ -72,9 +72,10 @@ export async function saveSettings(
   app: string,
   section: string,
   input: Record<string, unknown>,
+  ip = "local",
 ) {
   validTarget(app, section);
-  const session = requireSession(raw);
+  const session = requireSession(raw, ip);
   if (
     typeof input.requestId !== "string" ||
     !/^[a-f0-9-]{36}$/.test(input.requestId) ||
@@ -93,36 +94,21 @@ export async function saveSettings(
   const payloadHash = digest(`${app}:${section}:${payload}`);
   const db = state();
   let previous: Record<string, unknown> | undefined;
-  let factor: string;
   try {
     previous = db.prepare("SELECT * FROM operator_intent WHERE id=?").get(input.requestId);
     if (previous && (previous.session !== session.hash || previous.payload_hash !== payloadHash))
       throw new Error("CONFLICT");
     if (previous?.status === "completed") return JSON.parse(String(previous.result));
     if (previous?.status === "conflict") throw new Error("CONFLICT");
-    const user = db.prepare("SELECT factor FROM operator_user WHERE id=1 AND active=1").get();
-    if (!user) throw new Error("UNAUTHENTICATED");
-    factor = String(user.factor);
   } finally {
     db.close();
   }
   if (!previous) {
-    limit("stepup.account", 15, 900);
-    const step = await totpStep(unseal(factor, "totp"), input.code);
+    const proof = await prepareStepUp(raw, input, ip);
     const writer = state();
     try {
       transaction(writer, () => {
-        const current = writer
-          .prepare(`SELECT s.hash FROM operator_session s JOIN operator_user u ON u.id=1
-          WHERE s.hash=? AND s.revoked=0 AND s.created>? AND s.seen>? AND u.active=1 AND u.recovery_required=0 AND u.factor=?`)
-          .get(session.hash, now() - 8 * 3600, now() - 900, factor);
-        if (!current) throw new Error("UNAUTHENTICATED");
-        if (
-          !writer
-            .prepare("UPDATE operator_user SET last_step=? WHERE id=1 AND last_step<? RETURNING id")
-            .get(step, step)
-        )
-          throw new Error("CODE_ALREADY_USED");
+        commitStepUp(writer, proof);
         writer
           .prepare(
             "INSERT INTO operator_intent(id,session,payload,payload_hash,app,section,status,time) VALUES(?,?,?,?,?,?,?,?)",
@@ -144,7 +130,7 @@ export async function saveSettings(
     }
   }
   // Repeat current authority immediately before the synchronous remote attempt.
-  requireSession(raw);
+  requireSession(raw, ip);
   try {
     const result = await connector(`/apps/${app}/settings/${section}`, "PUT", JSON.parse(payload));
     complete(input.requestId, result);

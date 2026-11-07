@@ -28,7 +28,7 @@ The interface supports **English, Turkish, and German**. Use the language select
 ## Where it is headed
 
 - Separate workspaces for clients and teams, with scoped memberships and application access.
-- Secure sign-in with required authenticator codes, recovery, and revocable server sessions.
+- Secure sign-in with optional authenticator codes on every sign-in when enabled, recovery, and revocable server sessions.
 - A documented HTTP/JSON contract that developers can implement in their own applications.
 - Shared lists, details, and forms for supported management tasks, with audit records.
 - A responsive interface that works on a phone as well as a desktop.
@@ -37,7 +37,7 @@ An API integration will let you work inside OpenHubPanel using one local session
 
 ## What works now
 
-The repository includes a Next.js interface, application search, workspace switching, team and activity previews, themes, three interface languages, and sample dialogs. Underneath it are shared schemas, initial security helpers, PostgreSQL row-level security, a minimal worker, and CI checks. The separate single-owner adapter adds mandatory password/TOTP, revocable sessions, recovery, native configuration forms and audited writes for one compatible existing installation. These do not complete the general administration product.
+The repository includes a Next.js interface, application search, workspace switching, team and activity previews, themes, three interface languages, and sample dialogs. Underneath it are shared schemas, initial security helpers, PostgreSQL row-level security, a minimal worker, and CI checks. The separate single-owner adapter adds character-gated username/password, optional TOTP and IP restrictions, revocable sessions, recovery, native configuration forms and audited writes for one compatible existing installation. These do not complete the general administration product.
 
 Read the [project status](PROJECT_STATUS.md) for the boundary between working code and planned features. Start development with the [setup guide](docs/DEVELOPMENT.md). See the [vision](docs/product/vision.md), [roadmap](docs/roadmap/implementation.md), and [security design](docs/architecture/security.md) for the intended product.
 

@@ -3,6 +3,68 @@
   margin: 8vh auto;
   padding: 32px;
 }
+.character-grid {
+  border: 0;
+  padding: 0;
+  min-inline-size: 0;
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+  margin: 20px 0;
+}
+.character-card {
+  display: grid;
+  gap: 8px;
+  place-items: center;
+  padding: 14px 6px;
+  border: 2px solid transparent;
+  border-radius: 14px;
+  background: #f3f6f8;
+  color: #25384a;
+  cursor: pointer;
+  font: inherit;
+  font-size: 12px;
+}
+.character-card:nth-child(2n) {
+  background: #fff4e4;
+}
+.character-card:nth-child(3n) {
+  background: #edf4ed;
+}
+.character-card:hover,
+.character-card:focus-visible {
+  border-color: #90aabc;
+  outline: 2px solid transparent;
+}
+.character-card.selected {
+  border-color: #176f62;
+  background: #e7f3ed;
+}
+.character-picture {
+  font-size: 48px;
+  line-height: 1.2;
+}
+.character-card:disabled {
+  opacity: 0.6;
+  cursor: wait;
+}
+.owner-security {
+  border-top: 1px solid var(--border);
+  padding-top: 22px;
+  margin-top: 12px;
+}
+@media (max-width: 420px) {
+  .character-grid {
+    gap: 7px;
+  }
+  .character-picture {
+    font-size: 37px;
+  }
+  .character-card {
+    padding: 12px 2px;
+    font-size: 11px;
+  }
+}
 .owner-auth h1 {
   font-size: 28px;
   margin: 22px 0 8px;

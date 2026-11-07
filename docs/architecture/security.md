@@ -2,9 +2,9 @@
 
 This is an implementation contract, not a claim that these controls are complete. See [project status](../../PROJECT_STATUS.md), [ADR-004](../decisions/004-security-review.md), and the [threat model](threat-model.md).
 
-## Required identity assurance
+## Identity assurance
 
-Every P0 role requires password plus TOTP. Email verifies an address and carries notifications/recovery requests; SMS initially verifies a phone or carries notifications. Neither replaces TOTP, authorizes management, resets MFA, or supplies step-up. A provider failure never enables a weaker sign-in. Google Authenticator implements TOTP; Google sign-in is a separate future OIDC feature. TOTP is not phishing-resistant. Passkeys need a separate verified policy.
+The owner-selected policy in [ADR-008](../decisions/008-owner-sign-in-preferences.md) uses a server-validated character gate before username/password. TOTP is optional; when enabled it is required on every sign-in without trusted-device skipping. Email verifies an address and carries notifications/recovery requests; SMS initially verifies a phone or carries notifications. Neither replaces TOTP, authorizes management, resets MFA, or supplies step-up. A provider failure never enables a weaker sign-in. Google Authenticator implements TOTP; Google sign-in is a separate future OIDC feature. TOTP is not phishing-resistant. Passkeys need a separate verified policy.
 
 Login verifies the password, applies risk/limit checks, then verifies the enrolled factor. Until MFA completes, the user has only an opaque pre-session with no management access. Bind the challenge to user, browser pre-session, and purpose; store expiry, attempts, and consumption server-side. On success consume it and issue a new independent server-session token. Initial MFA challenge limits: 5 minutes and 5 attempts. Record successful and failed security steps.
 
@@ -12,7 +12,7 @@ Login verifies the password, applies risk/limit checks, then verifies the enroll
 
 Use maintained Argon2id with a unique salt. The initial minimum is `m=19456 KiB, t=2, p=1`; benchmark memory/concurrent-login load on the actual host and increase appropriately. Store parameters with the hash and rehash on successful login when policy changes. Plain SHA-256 is not password storage.
 
-Require at least 15 characters, accept at least 64, and never silently truncate. Support password managers and paste; do not require arbitrary character mixtures or periodic changes. Check common/compromised passwords. Password changes require the current strong factor. Never log passwords.
+Require at least 6 characters, accept at least 64, and never silently truncate. Support password managers and paste; do not require arbitrary character mixtures or periodic changes. Check common/compromised passwords. Password changes require the current strong factor. Never log passwords.
 
 References: [OWASP Password Storage](https://cheatsheetseries.owasp.org/cheatsheets/Password_Storage_Cheat_Sheet.html), [NIST password requirements](https://pages.nist.gov/800-63-4/sp800-63b.html#passwordver).
 
@@ -46,7 +46,7 @@ If all factors and recovery codes are lost, email/SMS cannot instantly disable M
 
 Use server-side sessions with at least 256-bit random opaque tokens; store only hashes in the database. Cookie: `__Host-hubpanel_session`, `Path=/`, `HttpOnly`, `Secure`, `SameSite=Lax` or stricter, without `Domain`. Initial server-enforced expiry is 15 minutes idle and 8 hours total.
 
-Check current account state, session expiry/revocation, membership, and permissions from the authoritative source on every protected request. A cached role or cookie claim is insufficient. Repeat critical checks inside the mutation transaction. Password reset/change, factor changes, recovery, and account disablement revoke sessions; revoked access fails on the next protected request. Required MFA has no disable option. Support device/session review and logout from all devices; minimize IP/device data.
+Check current account state, session expiry/revocation, membership, and permissions from the authoritative source on every protected request. A cached role or cookie claim is insufficient. Repeat critical checks inside the mutation transaction. Password reset/change, factor changes, recovery, and account disablement revoke sessions; revoked access fails on the next protected request. Disabling enabled MFA requires the current password and current TOTP; enabling it requires verified enrollment. Support device/session review and logout from all devices; minimize IP/device data.
 
 Apply account/IP/device limits with escalating delay and distributed Redis counters. Initial password baseline: 10 failed attempts per account/15 minutes and 30 sign-in requests per IP/minute, subject to NAT/load testing. Challenge creation, resends, and device changes must not reset aggregate account/IP failures. Avoid permanent lockout as an attacker-controlled denial of service; CAPTCHA is risk-triggered only.
 

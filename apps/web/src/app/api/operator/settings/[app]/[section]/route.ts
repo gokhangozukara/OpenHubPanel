@@ -1,14 +1,15 @@
 import { cookies } from "next/headers";
+import { clientIp } from "@/server/operator/access";
 import { requireSession, sessionCookie } from "@/server/operator/auth";
 import { connector, saveSettings, validTarget } from "@/server/operator/connector";
 import { body, checkMutation, privateHeaders, rejection } from "@/server/operator/http";
 import { enabled } from "@/server/operator/store";
 
 type Context = { params: Promise<{ app: string; section: string }> };
-export async function GET(_request: Request, context: Context) {
+export async function GET(request: Request, context: Context) {
   if (!enabled()) return new Response(null, { status: 404 });
   try {
-    requireSession((await cookies()).get(sessionCookie)?.value);
+    requireSession((await cookies()).get(sessionCookie)?.value, clientIp(request.headers));
     const { app, section } = await context.params;
     validTarget(app, section);
     return Response.json(await connector(`/apps/${app}/settings/${section}`), { headers: privateHeaders });
@@ -22,7 +23,13 @@ export async function PUT(request: Request, context: Context) {
     await checkMutation(request);
     const { app, section } = await context.params;
     return Response.json(
-      await saveSettings((await cookies()).get(sessionCookie)?.value, app, section, await body(request)),
+      await saveSettings(
+        (await cookies()).get(sessionCookie)?.value,
+        app,
+        section,
+        await body(request),
+        clientIp(request.headers),
+      ),
       { headers: privateHeaders },
     );
   } catch (error) {

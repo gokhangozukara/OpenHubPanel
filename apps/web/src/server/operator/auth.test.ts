@@ -4,20 +4,39 @@ import path from "node:path";
 import { generate } from "otplib";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import {
-  beginLogin,
-  beginRecovery,
-  beginSetup,
   changePassword,
   configured,
   finishChallenge,
+  beginLogin as realBeginLogin,
+  beginRecovery as realBeginRecovery,
+  beginSetup as realBeginSetup,
   requireSession,
   revoke,
+  selectCharacter,
 } from "./auth";
 import { digest, migrate, now, seal, state, token, unseal } from "./store";
 
 let directory: string;
 let bootstrap: string;
 let epoch: number;
+async function beginSetup(bootstrap: unknown, password: unknown, manual = false) {
+  const result = await realBeginSetup(bootstrap, password, manual, {
+    username: "owner",
+    character: "camel",
+    mfaEnabled: true,
+  });
+  if (!result.secret || !result.challenge) throw new Error("Expected enrollment");
+  return { secret: result.secret, challenge: result.challenge, phase: result.phase, qr: result.qr };
+}
+async function beginLogin(email: unknown, password: unknown) {
+  const gate = selectCharacter("camel").gate;
+  return realBeginLogin(email, password, gate);
+}
+async function beginRecovery(challenge: string | undefined, code: unknown) {
+  const result = await realBeginRecovery(challenge, code);
+  if (!result.secret || !result.challenge) throw new Error("Expected recovery enrollment");
+  return { secret: result.secret, challenge: result.challenge, phase: result.phase, qr: result.qr };
+}
 beforeEach(() => {
   directory = mkdtempSync(path.join(tmpdir(), "openhub-operator-"));
   vi.stubEnv("OPENHUB_OPERATOR", "1");
@@ -225,7 +244,7 @@ it("trusted-console recovery preserves the owner, blocks restored authority, and
   }).trim();
   const manualToken = new URLSearchParams(url.split("#")[1]).get("bootstrap");
   expect(() => requireSession(owner.session)).toThrow("UNAUTHENTICATED");
-  await expect(beginLogin("owner@example.invalid", password)).rejects.toThrow("INVALID_CREDENTIALS");
+  await expect(beginLogin("owner@example.invalid", password)).rejects.toThrow("UNAUTHENTICATED");
   const enrollment = await beginSetup(manualToken, `${password} replaced`, true);
   expect(() => requireSession(enrollment.challenge)).toThrow("UNAUTHENTICATED");
   const result = await finishChallenge(
