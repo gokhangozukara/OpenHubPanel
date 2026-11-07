@@ -66,7 +66,7 @@ beforeEach(async () => {
     `CREATE TABLE apps(slug TEXT PRIMARY KEY); CREATE TABLE app_config(slug TEXT PRIMARY KEY, ${fields.join(",")},popup_version INTEGER DEFAULT 0,updated_at TEXT,fcm_service_account TEXT DEFAULT 'synthetic-private-path'); INSERT INTO apps VALUES('example'); INSERT INTO app_config(slug,popup_frequency) VALUES('example','once');`,
   );
   database.exec(
-    "ALTER TABLE apps ADD COLUMN name TEXT; ALTER TABLE apps ADD COLUMN package TEXT; CREATE TABLE notifications(id INTEGER PRIMARY KEY,slug TEXT,title TEXT,body TEXT,status TEXT,detail TEXT,target_type TEXT,target_app_slug TEXT,target_route TEXT,target_url TEXT,sent_at TEXT DEFAULT (datetime('now')))",
+    "ALTER TABLE apps ADD COLUMN name TEXT; ALTER TABLE apps ADD COLUMN package TEXT; ALTER TABLE apps ADD COLUMN category TEXT; ALTER TABLE apps ADD COLUMN sort INTEGER DEFAULT 0; CREATE TABLE notifications(id INTEGER PRIMARY KEY,slug TEXT,title TEXT,body TEXT,status TEXT,detail TEXT,target_type TEXT,target_app_slug TEXT,target_route TEXT,target_url TEXT,sent_at TEXT DEFAULT (datetime('now')))",
   );
   const app = express();
   app.use(express.json());
@@ -114,6 +114,49 @@ async function configuration(section: string) {
   expect(response.status).toBe(200);
   return response.json();
 }
+it("creates and edits applications atomically with replay and conflict protection", async () => {
+  const input = {
+    requestId: randomUUID(),
+    revision: "0".repeat(64),
+    values: { name: "Fresh application", package: "invalid.fresh", category: "Tools" },
+  };
+  const first = await (await request("/apps/fresh/settings/application", "PUT", input)).json();
+  expect(first.ok).toBe(true);
+  expect(await (await request("/apps/fresh/settings/application", "PUT", input)).json()).toEqual(first);
+  expect(database.prepare("SELECT COUNT(*) AS count FROM apps WHERE slug='fresh'").get()?.count).toBe(1);
+  expect(
+    (await request("/apps/fresh/settings/application", "PUT", { ...input, requestId: randomUUID() })).status,
+  ).toBe(409);
+  const read = await (await request("/apps/fresh/settings/application")).json();
+  expect(read.values.name).toBe("Fresh application");
+  const update = {
+    ...input,
+    requestId: randomUUID(),
+    revision: read.revision,
+    values: { ...read.values, name: "Renamed" },
+  };
+  expect((await request("/apps/fresh/settings/application", "PUT", update)).status).toBe(200);
+  expect(database.prepare("SELECT name FROM apps WHERE slug='fresh'").get()?.name).toBe("Renamed");
+  expect(
+    (await request("/apps/fresh/settings/application", "PUT", { ...update, requestId: randomUUID() })).status,
+  ).toBe(409);
+});
+it("rolls back a new application when its audit cannot commit", async () => {
+  database.exec(
+    "CREATE TRIGGER reject_registration BEFORE INSERT ON openhub_audit BEGIN SELECT RAISE(ABORT,'fixture'); END",
+  );
+  expect(
+    (
+      await request("/apps/not-created/settings/application", "PUT", {
+        requestId: randomUUID(),
+        revision: "0".repeat(64),
+        values: { name: "Not created", package: "", category: "" },
+      })
+    ).status,
+  ).toBe(503);
+  expect(database.prepare("SELECT slug FROM apps WHERE slug='not-created'").get()).toBeUndefined();
+  expect(database.prepare("SELECT slug FROM app_config WHERE slug='not-created'").get()).toBeUndefined();
+});
 it("sends a notification once, preserves history and refuses a changed replay", async () => {
   const config = await configuration("push");
   const input = {

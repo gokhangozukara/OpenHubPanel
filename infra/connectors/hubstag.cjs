@@ -2,53 +2,7 @@
 const { createHash, timingSafeEqual } = require("node:crypto");
 const { readFileSync } = require("node:fs");
 
-const sections = {
-  ads: [
-    ["banner_1_active", "Banner 1", "boolean"],
-    ["banner_2_active", "Banner 2", "boolean"],
-    ["interstitial_1_active", "Interstitial 1", "boolean"],
-    ["interstitial_2_active", "Interstitial 2", "boolean"],
-    ["interstitial_frequency", "Interstitial frequency", "integer"],
-    ["banner_1_unit", "Banner 1 unit", "text"],
-    ["banner_2_unit", "Banner 2 unit", "text"],
-    ["interstitial_1_unit", "Interstitial unit", "text"],
-  ],
-  popup: [
-    ["popup_active", "Pop-up enabled", "boolean"],
-    ["popup_title", "Title", "text"],
-    ["popup_body", "Message", "multiline"],
-    ["popup_image_url", "Image URL", "text"],
-    ["popup_button_text", "Button text", "text"],
-    ["popup_link", "Target link", "text"],
-    ["popup_frequency", "Display frequency", "frequency"],
-  ],
-  announce: [
-    ["announcement_active", "Announcement enabled", "boolean"],
-    ["announcement_text", "Announcement", "multiline"],
-    ["maintenance_mode", "Maintenance enabled", "boolean"],
-    ["maintenance_text", "Maintenance message", "multiline"],
-  ],
-  update: [
-    ["latest_version", "Latest version", "text"],
-    ["min_version", "Minimum version", "text"],
-    ["force_update", "Require update", "boolean"],
-    ["update_url", "Update URL", "text"],
-  ],
-  pro: [
-    ["pro_enabled", "Subscription enabled", "boolean"],
-    ["pro_remove_ads", "Remove ads", "boolean"],
-    ["pro_title", "Subscription title", "text"],
-    ["pro_features", "Features (one per line)", "multiline"],
-    ["pro_monthly_price", "Monthly price", "text"],
-    ["pro_yearly_price", "Yearly price", "text"],
-    ["pro_product_monthly", "Monthly product ID", "text"],
-    ["pro_product_yearly", "Yearly product ID", "text"],
-    ["pro_android_key", "Android public SDK key", "text"],
-    ["pro_ios_key", "iOS public SDK key", "text"],
-    ["pro_entitlement", "Entitlement", "text"],
-  ],
-  notes: [["notes", "Private notes", "multiline"]],
-};
+const sections = require("./fields.json");
 const sha = (value) => createHash("sha256").update(value).digest("hex");
 const fieldValues = (row, section) =>
   Object.fromEntries(
@@ -131,6 +85,7 @@ module.exports = function createConnector({ express, sqlite3, databasePath, keyF
   })();
   ready.catch(() => {});
   router.ready = ready;
+  require("./applications.cjs")({ router, connection, ready, account, sha });
   require("./push.cjs")({ router, connection, ready, account, push, sha });
   router.get("/apps", async (_req, res) => {
     const c = connection();

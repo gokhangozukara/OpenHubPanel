@@ -43,6 +43,12 @@ export function migrate(db: DatabaseSync) {
       id TEXT PRIMARY KEY, session TEXT NOT NULL, payload TEXT NOT NULL, payload_hash TEXT NOT NULL,
       app TEXT NOT NULL, section TEXT NOT NULL, status TEXT NOT NULL, result TEXT, time INTEGER NOT NULL
     );
+    CREATE TABLE IF NOT EXISTS operator_application(id TEXT PRIMARY KEY,name TEXT NOT NULL,package TEXT NOT NULL,category TEXT NOT NULL,sort INTEGER NOT NULL,config TEXT NOT NULL);
+    CREATE TABLE IF NOT EXISTS operator_local_operation(id TEXT PRIMARY KEY,payload_hash TEXT NOT NULL,result TEXT NOT NULL);
+    CREATE TABLE IF NOT EXISTS operator_application_audit(id INTEGER PRIMARY KEY,time TEXT NOT NULL,app TEXT NOT NULL,section TEXT NOT NULL,fields TEXT NOT NULL,request_id TEXT NOT NULL UNIQUE);
+    CREATE TRIGGER IF NOT EXISTS operator_application_audit_no_update BEFORE UPDATE ON operator_application_audit BEGIN SELECT RAISE(ABORT,'APPEND_ONLY'); END;
+    CREATE TRIGGER IF NOT EXISTS operator_application_audit_no_delete BEFORE DELETE ON operator_application_audit BEGIN SELECT RAISE(ABORT,'APPEND_ONLY'); END;
+    CREATE TABLE IF NOT EXISTS operator_connection(id TEXT PRIMARY KEY,name TEXT NOT NULL,kind TEXT NOT NULL,url TEXT NOT NULL,secret TEXT NOT NULL,manifest TEXT NOT NULL,write_enabled INTEGER NOT NULL DEFAULT 0,revision TEXT NOT NULL,disabled INTEGER NOT NULL DEFAULT 0,checked INTEGER NOT NULL DEFAULT 0,status TEXT NOT NULL DEFAULT 'unchecked');
     CREATE TRIGGER IF NOT EXISTS operator_event_no_update BEFORE UPDATE ON operator_event BEGIN SELECT RAISE(ABORT, 'APPEND_ONLY'); END;
     CREATE TRIGGER IF NOT EXISTS operator_event_no_delete BEFORE DELETE ON operator_event BEGIN SELECT RAISE(ABORT, 'APPEND_ONLY'); END;
   `);

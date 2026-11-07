@@ -199,3 +199,16 @@
     display: none;
   }
 }
+.integration-code {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  max-width: 100%;
+  padding: 16px;
+  border-radius: 8px;
+  background: #f3f6f7;
+  font-size: 13px;
+  line-height: 1.6;
+}
+.pilot-content > .owner-settings + .owner-settings {
+  margin-top: 20px;
+}

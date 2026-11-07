@@ -1,9 +1,11 @@
 "use client";
 
-import { Activity, Blocks, LogOut, Search, Settings, ShieldCheck } from "lucide-react";
+import { Activity, Blocks, Link2, LogOut, Search, Settings, ShieldCheck } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { LanguageSelector, useLocale } from "@/i18n/provider";
 import type { PilotApplication } from "@/server/pilot/catalog";
+import { ApplicationCreate } from "./application-create";
+import { ConnectionsPanel } from "./connections";
 import { SecuritySettings } from "./security-settings";
 import { SignIn } from "./sign-in";
 
@@ -22,6 +24,7 @@ type Audit = {
   settings: { time: string; app: string; section: string; fields: string; request_id: string }[];
 };
 const sectionLabels = {
+  application: "Application details",
   ads: "Advertising",
   popup: "Pop-up",
   announce: "Announcements",
@@ -31,6 +34,18 @@ const sectionLabels = {
   push: "Push notifications",
 };
 const errors: Record<string, string> = {
+  INVALID_CONNECTION_URL: "Enter a valid HTTPS address.",
+  CONNECTION_TARGET_BLOCKED: "This API address resolves to a private or reserved network.",
+  CONNECTION_PERMISSION_DENIED: "The API token is invalid or lacks permission.",
+  CONNECTION_UNAVAILABLE: "The remote API is unavailable. Try the connection again shortly.",
+  INCOMPATIBLE_CONNECTION: "This service does not provide the supported OpenHubPanel 1.0 API.",
+  CONNECTION_RESPONSE_TOO_LARGE: "The API response exceeds the supported size.",
+  TARGET_APPROVAL_REQUIRED: "Approve the API host and enter an access token of at least 16 characters.",
+  CONNECTION_LIMIT: "This installation supports up to 50 active external connections.",
+  CONNECTION_EXISTS: "This address is already connected.",
+  CONNECTION_NOT_FOUND: "This connection is missing or disabled.",
+  REMOTE_READ_ONLY: "This connection does not allow title changes.",
+  REMOTE_NOT_FOUND: "The remote record or operation was not found.",
   PUSH_NOT_CONFIGURED: "Firebase is not connected for this application. No notification was sent.",
   INVALID_PUSH_TARGET: "Check the notification target and try again.",
   INVALID_REQUEST: "Check the required fields and their lengths.",
@@ -75,6 +90,8 @@ export function LivePanel({
   const [selected, setSelected] = useState<string | null>(null);
   const [query, setQuery] = useState("");
   const [account, setAccount] = useState(false);
+  const [creating, setCreating] = useState(false);
+  const [connections, setConnections] = useState(false);
   const [audit, setAudit] = useState<Audit | null>(null);
   const [probes, setProbes] = useState<Record<string, string>>({});
   const [checking, setChecking] = useState(false);
@@ -160,6 +177,8 @@ export function LivePanel({
     }
   }
   async function showAccount() {
+    setCreating(false);
+    setConnections(false);
     setAccount(true);
     setSelected(null);
     setError("");
@@ -178,11 +197,13 @@ export function LivePanel({
         </a>
         <p className="nav-heading">{t("Your workspace")}</p>
         <button
-          className={`nav-item ${!selected && !account ? "active" : ""}`}
+          className={`nav-item ${!selected && !account && !connections && !creating ? "active" : ""}`}
           type="button"
           onClick={() => {
             setSelected(null);
             setAccount(false);
+            setCreating(false);
+            setConnections(false);
           }}
         >
           <Activity size={17} />
@@ -191,6 +212,32 @@ export function LivePanel({
         <button className={`nav-item ${account ? "active" : ""}`} type="button" onClick={showAccount}>
           <ShieldCheck size={17} />
           {t("Security and activity")}
+        </button>
+        <button
+          className={`nav-item ${connections ? "active" : ""}`}
+          type="button"
+          onClick={() => {
+            setConnections(true);
+            setCreating(false);
+            setAccount(false);
+            setSelected(null);
+          }}
+        >
+          <Link2 size={17} />
+          {t("Connections")}
+        </button>
+        <button
+          className={`nav-item ${creating ? "active" : ""}`}
+          type="button"
+          onClick={() => {
+            setCreating(true);
+            setConnections(false);
+            setAccount(false);
+            setSelected(null);
+          }}
+        >
+          <Settings size={17} />
+          {t("Add application")}
         </button>
         <p className="nav-heading">{t("Your applications")}</p>
         {applications.map((app) => (
@@ -201,6 +248,8 @@ export function LivePanel({
             onClick={() => {
               setSelected(app.id);
               setAccount(false);
+              setCreating(false);
+              setConnections(false);
             }}
           >
             {app.name}
@@ -230,7 +279,28 @@ export function LivePanel({
               {message(error)}
             </p>
           )}
-          {account ? (
+          {connections ? (
+            <ConnectionsPanel
+              call={call}
+              message={message}
+              mfaEnabled={mfaEnabled}
+              onAddApplication={() => {
+                setConnections(false);
+                setCreating(true);
+              }}
+              onApplications={() => {
+                setConnections(false);
+                setSelected(null);
+              }}
+            />
+          ) : creating ? (
+            <ApplicationCreate
+              call={call}
+              message={message}
+              mfaEnabled={mfaEnabled}
+              onCancel={() => setCreating(false)}
+            />
+          ) : account ? (
             <section className="card owner-account">
               <h1>{t("Security and activity")}</h1>
               <p>{email}</p>
@@ -285,6 +355,7 @@ export function LivePanel({
               call={call}
               message={message}
               mfaEnabled={mfaEnabled}
+              basePath={basePath}
             />
           ) : (
             <>
@@ -293,12 +364,35 @@ export function LivePanel({
                   <h1>{t("Applications")}</h1>
                   <p>{t("Your live applications, settings and activity in one place.")}</p>
                 </div>
-                <button className="button primary" type="button" disabled={checking} onClick={checkAll}>
-                  <Activity size={16} />
-                  {t(checking ? "Checking…" : "Check all connections")}
-                </button>
+                <div className="pilot-actions">
+                  <button
+                    className="button primary"
+                    type="button"
+                    onClick={() => {
+                      setCreating(true);
+                      setAccount(false);
+                      setSelected(null);
+                    }}
+                  >
+                    {t("Add application")}
+                  </button>
+                  <button className="button secondary" type="button" disabled={checking} onClick={checkAll}>
+                    <Activity size={16} />
+                    {t(checking ? "Checking…" : "Check all connections")}
+                  </button>
+                </div>
               </div>
               <section className="card">
+                {applications.length === 0 && (
+                  <div className="card-heading">
+                    <div>
+                      <h2>{t("Add your first application")}</h2>
+                      <p>
+                        {t("Choose a name and unique ID. Then copy its configuration URL into your app.")}
+                      </p>
+                    </div>
+                  </div>
+                )}
                 <div className="card-heading">
                   <div>
                     <h2>{t("Your applications")}</h2>
@@ -465,11 +559,13 @@ function Application({
   call,
   message,
   mfaEnabled,
+  basePath,
 }: {
   application: PilotApplication;
   call: Call;
   message: (code: string) => string;
   mfaEnabled: boolean;
+  basePath: string;
 }) {
   const { t } = useLocale();
   const [section, setSection] = useState("ads");
@@ -508,7 +604,50 @@ function Application({
         call={call}
         message={message}
       />
+      {section === "application" && <IntegrationInstructions app={application.id} basePath={basePath} />}
     </>
+  );
+}
+function IntegrationInstructions({ app, basePath }: { app: string; basePath: string }) {
+  const { t } = useLocale();
+  const [url, setUrl] = useState("");
+  const [copied, setCopied] = useState(false);
+  useEffect(() => {
+    setUrl(`${location.origin}${basePath}/api/config/${app}`);
+  }, [app, basePath]);
+  return (
+    <section className="card owner-settings">
+      <h2>{t("Connect your application")}</h2>
+      <p>
+        {t(
+          "Read this public configuration URL from your app to use the advertising, pop-up, version and subscription settings. Private notes and management credentials are excluded.",
+        )}
+      </p>
+      <label className="owner-field">
+        {t("Configuration URL")}
+        <input readOnly value={url} onFocus={(event) => event.target.select()} />
+      </label>
+      <div className="pilot-actions">
+        <button
+          className="button secondary"
+          type="button"
+          onClick={async () => {
+            try {
+              await navigator.clipboard.writeText(url);
+              setCopied(true);
+            } catch {
+              setCopied(false);
+            }
+          }}
+        >
+          {t(copied ? "Copied" : "Copy URL")}
+        </button>
+        <a className="button secondary" href={url || undefined} target="_blank" rel="noopener noreferrer">
+          {t("View configuration")}
+        </a>
+      </div>
+      <pre className="integration-code">{`const response = await fetch(${JSON.stringify(url)});\nif (!response.ok) throw new Error('Configuration unavailable');\nconst configuration = await response.json();`}</pre>
+    </section>
   );
 }
 function ConfigurationForm({

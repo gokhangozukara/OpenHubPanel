@@ -1,6 +1,6 @@
 # Integrations and workspaces
 
-This is a target contract under [ADR-005](../decisions/005-admin-hub.md). Initial schemas exist; a working connector and SSO service do not.
+The single-owner installation implements the narrow 1.0 content contract: connection registration, encrypted credentials, safe HTTPS transport, read-only defaults and separately enabled title writes. See the [standalone guide and two independent examples](../deployment/standalone-installation.md). The workspace/isolation/SSO sections below describe the general product target under [ADR-005](../decisions/005-admin-hub.md), not completed multi-client behavior.
 
 ## Terms and connection levels
 
@@ -18,7 +18,7 @@ A user may belong to several workspaces with different roles. Workspace owners d
 
 ## HTTP/JSON contract
 
-Draft contract revision `0.1` is not a published release API promise. PHP, Python, Node.js, or any backend can implement it without a language-specific SDK. Manifests contain identity, schema/version, capabilities, and permission declarations, never executable JavaScript/SQL/templates, secrets, or arbitrary full URLs.
+The owner adapter accepts contract version `1.0` through the shared strict manifest schema. This private initial release is not a general stable public API promise. PHP, Python, Node.js or any backend can implement it without a language-specific SDK. Manifests contain identity, schema/version and resource capabilities, never executable code, secrets or arbitrary full URLs.
 
 The first resource is `articles`: `id`, `title`, `status`, and `version`. Limit the first write to title update rather than arbitrary table CRUD. The independent second example is read-only.
 

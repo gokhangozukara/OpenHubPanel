@@ -1,5 +1,6 @@
 import type { PilotApplication } from "../pilot/catalog";
 import { commitStepUp, prepareStepUp, requireSession } from "./auth";
+import { embeddedConnector, embeddedPublicConfig } from "./embedded";
 import { digest, event, now, state, transaction } from "./store";
 
 function origin() {
@@ -17,6 +18,7 @@ function origin() {
   return url;
 }
 export async function connector(path: string, method = "GET", payload?: unknown) {
+  if (process.env.OPERATOR_DATA_MODE === "embedded") return embeddedConnector(path, method, payload);
   const key = process.env.OPERATOR_CONNECTOR_TOKEN;
   if (!key || key.length < 43 || !/^\/[a-z0-9/-]+$/.test(path)) throw new Error("CONNECTOR_UNAVAILABLE");
   const response = await fetch(new URL(`/internal/openhub${path}`, origin()), {
@@ -44,7 +46,7 @@ export async function connector(path: string, method = "GET", payload?: unknown)
 export function validTarget(app: string, section: string) {
   if (
     !/^[a-z0-9][a-z0-9-]{0,63}$/.test(app) ||
-    !["ads", "popup", "announce", "update", "pro", "notes", "push"].includes(section)
+    !["ads", "popup", "announce", "update", "pro", "notes", "push", "application"].includes(section)
   )
     throw new Error("APPLICATION_NOT_FOUND");
 }
@@ -175,4 +177,35 @@ function complete(id: string, result: Record<string, unknown>) {
   } finally {
     db.close();
   }
+}
+
+export async function publicApplicationConfig(id: string) {
+  if (!/^[a-z0-9][a-z0-9-]{0,63}$/.test(id)) throw new Error("APPLICATION_NOT_FOUND");
+  if (process.env.OPERATOR_DATA_MODE === "embedded") return embeddedPublicConfig(id);
+  const response = await fetch(new URL(`/api/v1/apps/${id}/config`, origin()), {
+    cache: "no-store",
+    redirect: "error",
+    signal: AbortSignal.timeout(3000),
+  });
+  if (response.status === 404) throw new Error("APPLICATION_NOT_FOUND");
+  if (!response.ok || !response.headers.get("content-type")?.includes("application/json") || !response.body)
+    throw new Error("CONNECTOR_UNAVAILABLE");
+  const reader = response.body.getReader();
+  const chunks: Uint8Array[] = [];
+  let size = 0;
+  try {
+    for (;;) {
+      const { value, done } = await reader.read();
+      if (done) break;
+      size += value.length;
+      if (size > 131072) throw new Error("CONNECTOR_UNAVAILABLE");
+      chunks.push(value);
+    }
+  } finally {
+    await reader.cancel();
+    reader.releaseLock();
+  }
+  const result = JSON.parse(Buffer.concat(chunks).toString("utf8"));
+  if (result.app !== id) throw new Error("CONNECTOR_UNAVAILABLE");
+  return result;
 }

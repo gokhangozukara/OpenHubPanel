@@ -37,9 +37,11 @@ An API integration will let you work inside OpenHubPanel using one local session
 
 ## What works now
 
-The repository includes a Next.js interface, application search, workspace switching, team and activity previews, themes, three interface languages, and sample dialogs. Underneath it are shared schemas, initial security helpers, PostgreSQL row-level security, a minimal worker, and CI checks. The separate single-owner adapter adds character-gated username/password, optional TOTP and IP restrictions, revocable sessions, recovery, native configuration forms and audited writes for one compatible existing installation. These do not complete the general administration product.
+The repository includes a Next.js interface, application search, workspace switching, team and activity previews, themes, three interface languages, and sample dialogs. Underneath it are shared schemas, initial security helpers, PostgreSQL row-level security, a minimal worker, and CI checks. The single-owner delivery adds real authentication, native application registration/configuration, push on the compatible host, independent empty storage, public configuration URLs, API connections/panel shortcuts and audited writes. These do not complete the general administration product.
 
 Read the [project status](PROJECT_STATUS.md) for the boundary between working code and planned features. Start development with the [setup guide](docs/DEVELOPMENT.md). See the [vision](docs/product/vision.md), [roadmap](docs/roadmap/implementation.md), and [security design](docs/architecture/security.md) for the intended product.
+
+For a new independent single-owner panel, follow the [standalone installation guide](docs/deployment/standalone-installation.md). The interface includes **Add application**, configuration URLs and **Connections** for API integrations and panel shortcuts. Setup starts with an empty application list and does not require an old panel. API integration currently supports article lists and separately approved title changes; arbitrary backend management and the general multi-client product remain incomplete.
 
 ## Contribute
 

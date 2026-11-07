@@ -60,9 +60,10 @@ fixtureApp.use(
     },
   }),
 );
-fixtureApp.get("/api/v1/apps/example/config", (_req, res) =>
-  res.json({ app: "example", ads: {}, update: {} }),
-);
+fixtureApp.get("/api/v1/apps/:id/config", (req, res) => {
+  const row = db.prepare("SELECT slug FROM apps WHERE slug=?").get(req.params.id);
+  return row ? res.json({ app: req.params.id, ads: {}, update: {} }) : res.sendStatus(404);
+});
 const upstream = createServer(fixtureApp);
 await new Promise((resolve) => upstream.listen(0, "127.0.0.1", resolve));
 const upstreamPort = upstream.address().port;
@@ -371,6 +372,35 @@ try {
   assert.equal(new URL(page.url()).pathname, "/openhub/live");
   assert.equal(await page.locator('a[href^="/app/"], a[href="/legacy"], a[href="/studio"]').count(), 0);
   await page.screenshot({ path: path.join(output, "native-push.png"), fullPage: true });
+  await page.getByRole("button", { name: "Connections", exact: true }).click();
+  await expect(page.getByRole("heading", { name: "Getting started", exact: true })).toBeVisible();
+  await page.locator(".page-heading").getByRole("button", { name: "Add connection", exact: true }).click();
+  await page.getByLabel("Connection type", { exact: true }).selectOption("link");
+  await page.getByLabel("Connection name", { exact: true }).fill("Fixture external panel");
+  await page.getByLabel("Panel URL", { exact: true }).fill("https://tools.example.com/manage");
+  await page.getByLabel("Confirm with your password", { exact: true }).fill(password);
+  await page.getByRole("button", { name: "Save shortcut", exact: true }).click();
+  await expect(page.getByRole("link", { name: "Open panel", exact: true })).toHaveAttribute(
+    "href",
+    "https://tools.example.com/manage",
+  );
+  await page.screenshot({ path: path.join(output, "connections-mobile.png"), fullPage: true });
+  await page.locator("aside").getByRole("button", { name: "Add application", exact: true }).click();
+  await page.getByLabel("Application name", { exact: true }).fill("Fresh browser application");
+  await page.getByLabel("Application ID", { exact: true }).fill("fresh-browser");
+  await page.getByLabel("Package or bundle ID", { exact: true }).fill("invalid.freshbrowser");
+  await page.getByLabel("Category", { exact: true }).fill("Tools");
+  await page.getByLabel("Confirm with your password", { exact: true }).fill(password);
+  await page.getByRole("button", { name: "Create application", exact: true }).click();
+  await expect(page.getByRole("heading", { name: "Fresh browser application", exact: true })).toBeVisible();
+  await expect(page.getByLabel("Configuration URL", { exact: true })).toHaveValue(
+    `${origin}/openhub/api/config/fresh-browser`,
+  );
+  const publicConfig = await (await context.request.get(`${origin}/openhub/api/config/fresh-browser`)).json();
+  assert.equal(publicConfig.app, "fresh-browser");
+  assert.equal(db.prepare("SELECT COUNT(*) AS count FROM apps WHERE slug='fresh-browser'").get().count, 1);
+  await page.setViewportSize({ width: 1440, height: 1000 });
+  await page.screenshot({ path: path.join(output, "application-created.png"), fullPage: true });
   const backupEnv = {
     // Real delivery is replaced by the fixture callback above.
     ...env,
@@ -423,6 +453,7 @@ try {
           "optional MFA controls and password-confirmed native writes",
           "IP restriction settings and self-lockout rejection",
           "native push form, authenticated send, history and no legacy navigation",
+          "application registration, configuration URL and external panel shortcut",
         ],
         browserErrors: errors,
       },

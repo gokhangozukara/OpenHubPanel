@@ -40,6 +40,8 @@ if (restore) {
     db.exec(
       "BEGIN IMMEDIATE; UPDATE operator_session SET revoked=1; DELETE FROM operator_challenge; DELETE FROM operator_recovery; DELETE FROM operator_bootstrap; UPDATE operator_user SET recovery_required=1;",
     );
+    if (db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='operator_connection'").get())
+      db.exec("UPDATE operator_connection SET disabled=1,write_enabled=0");
     db.prepare("INSERT INTO operator_event(time,event,target,result) VALUES(?,?,?,?)").run(
       Math.floor(Date.now() / 1000),
       "restore.requires-enrollment",

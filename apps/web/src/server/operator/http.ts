@@ -3,7 +3,7 @@ import { cookies } from "next/headers";
 import { cookieOptions, csrfCookie } from "./auth";
 import { equal, token } from "./store";
 
-export const privateHeaders = { "Cache-Control": "private, no-store" };
+export const privateHeaders = { "Cache-Control": "private, no-store, no-transform" };
 export async function csrfToken() {
   const jar = await cookies();
   let value = jar.get(csrfCookie)?.value;
@@ -45,6 +45,18 @@ export async function body(request: Request): Promise<Record<string, unknown>> {
 export function rejection(error: unknown) {
   const message = error instanceof Error ? error.message : "UNAVAILABLE";
   const names = new Set([
+    "INVALID_CONNECTION_URL",
+    "CONNECTION_TARGET_BLOCKED",
+    "CONNECTION_PERMISSION_DENIED",
+    "CONNECTION_UNAVAILABLE",
+    "INCOMPATIBLE_CONNECTION",
+    "CONNECTION_RESPONSE_TOO_LARGE",
+    "TARGET_APPROVAL_REQUIRED",
+    "CONNECTION_LIMIT",
+    "CONNECTION_EXISTS",
+    "CONNECTION_NOT_FOUND",
+    "REMOTE_READ_ONLY",
+    "REMOTE_NOT_FOUND",
     "PUSH_NOT_CONFIGURED",
     "INVALID_PUSH_TARGET",
     "INVALID_CHARACTER",
