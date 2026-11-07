@@ -20,6 +20,8 @@ Build the standalone Linux artifact on the maintainer's laptop/WSL with `scripts
 
 Run the web artifact as a dedicated unprivileged account, loopback only, with a read-only release tree and a dedicated writable state directory. Keep the environment outside the release/repository. Startup rejects invalid origin, keys, connector target or missing identity schema.
 
+At the native reverse proxy, append `no-transform` to the upstream `Cache-Control` value. Cloudflare email obfuscation otherwise rewrites authenticated HTML and injects a script that nonce CSP correctly blocks, causing a React hydration mismatch. Preserve the nonce policy; prevent the CDN transformation instead. See [Cloudflare's documented exclusion](https://developers.cloudflare.com/waf/tools/scrape-shield/email-address-obfuscation/). Verify the final authenticated page through the CDN as well as the standalone fixture.
+
 Required environment:
 
 | Variable                   | Value                                                                |
