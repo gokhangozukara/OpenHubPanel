@@ -22,6 +22,8 @@ The owner adapter accepts contract version `1.0` through the shared strict manif
 
 The first resource is `articles`: `id`, `title`, `status`, and `version`. Limit the first write to title update rather than arbitrary table CRUD. The independent second example is read-only.
 
+The implemented endpoints also include `GET /hubpanel/v1/manifest` and `GET /hubpanel/v1/operations/{id}`. Health returns `{ "status": "ok", "contractVersion": "1.0" }`. The manifest uses the shared schema: `id`, `name`, `contractVersion: "1.0"` and `resources: [{ id: "articles", name: "Articles", capabilities: ["list", "read", "update"] }]`; omit `update` for a read-only service. A list returns `{ items: [{ id, title, status, version }] }`. Title changes accept only `title`, `expectedVersion` and UUID `idempotencyKey`; the original successful response and operation lookup return `{ ok: true, idempotencyKey, version }`. Repeated keys with changed payloads conflict. Both examples require a scoped bearer identity independently of the caller's panel session.
+
 | Operation    | Relative endpoint                      | Required behavior                                 |
 | ------------ | -------------------------------------- | ------------------------------------------------- |
 | Health       | `GET /hubpanel/v1/health`              | Generic status and supported contract version     |
