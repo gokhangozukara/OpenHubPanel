@@ -9,9 +9,10 @@ This is the explicitly requested first owner's compatibility deployment (ADR-007
 - Real application catalog and configuration probes through a narrow loopback connector. No direct source-database mount or credential-table access by the web process.
 - Native advertising, pop-up, announcement/maintenance, version, subscription and private-note forms. Explicit version preconditions, per-save TOTP or password confirmation, persistent request IDs and atomic host-side audit. Conflicts do not overwrite another save. Unknown results are reconciled, not blindly resubmitted.
 - Security/configuration history, password change and logout from all native sessions. Password changes revoke sessions and pending challenges.
-- English, Turkish and German; responsive layouts. Studio, push delivery and the specialized music editor retain their existing tools and authentication. They are links to existing management, not native rewrites or new SSO.
+- Native push composer and notification history, with home/screen/application/HTTPS targets. The host retains Firebase credentials and routing rules. A transactional audit and durable operation reservation precede delivery; duplicate request IDs never send twice. Unknown results are reconciled without automatically repeating a Firebase request.
+- English, Turkish and German; responsive layouts. No navigation to the old panel. Studio and specialized music workflows are not native features.
 
-The source adapter is single-owner and single-instance. It does not provide client workspaces, teams, invitations, arbitrary connector credentials, installation-admin delegation or distributed rate limiting. Do not enable replicas/additional accounts or claim all general-product threat scenarios passed. Existing legacy sessions keep their original semantics; native logout does not revoke a legacy application's independent session.
+The source adapter is single-owner and single-instance. It does not provide client workspaces, teams, invitations, arbitrary connector credentials, installation-admin delegation or distributed rate limiting. Do not enable replicas/additional accounts or claim all general-product threat scenarios passed. Retire the host's old template/login/editor handlers and remove their templates/assets from the runtime tree. Old management addresses redirect to native management; old form mutations return 410. Preserve mobile configuration APIs, source data and Firebase credentials. A private rollback archive is not a served alternative interface.
 
 ## Runtime
 
@@ -36,7 +37,7 @@ Required environment:
 
 The existing host mounts `connectors/hubstag.cjs` under `/internal/openhub` using its Express/sqlite3 modules and its real database filename. Configure the key file and fixed operator identity on the host. The connector checks loopback transport and its service token, exposes only allowlisted fields and owns all source-database writes. Block the internal prefix at the public reverse proxy. Do not expose this as a public API or grant the web process database writes.
 
-Reverse-proxy the application prefix to the dedicated web port and overwrite `X-OpenHub-Client-IP` with the trusted peer address. Route the main entry to the native `/live` screen, keep the original editor as `/legacy`, and preserve every existing mobile API/application/media route. Use `connectors/legacy-login.cjs` to preserve narrowly allowlisted editor destinations across legacy sign-in. No general URL redirects are allowed.
+Reverse-proxy the application prefix to the dedicated web port and overwrite `X-OpenHub-Client-IP` with the trusted peer address. Route the main entry to the native `/live` screen. Redirect old `/app/:slug?tab=...` bookmarks to `/live?app=:slug&tab=...` using strictly validated slugs and an explicit tab allowlist. Redirect the old panel/login/Studio entry to the native panel. Preserve existing mobile APIs and application/media data. No general URL redirects are allowed. Mount the host connector with a `push` adapter from `connectors/firebase-push.cjs`, passing the host's installed JWT library and existing push-routing module. Install `connectors/push.cjs` beside the connector. Never give the native web process Firebase service-account files.
 
 ## First owner
 
@@ -48,7 +49,7 @@ node --env-file=/protected/operator.env /release/operator-bootstrap.mjs
 
 The command migrates the independent identity schema and prints one activation URL. Deliver it privately or open it on the owner's device. Its fragment is removed from browser history once read and never reaches HTTP/access logs. It expires in fifteen minutes. A new invocation rotates an unclaimed token; an existing account cannot be replaced by normal bootstrap. Do not collect the owner's password or authenticator code in chat.
 
-The owner chooses a password of 15–256 characters, scans the QR in an authenticator, enters the current code and saves recovery codes. Password safety checking uses the Have I Been Pwned k-anonymity range API; only a SHA-1 prefix is sent. An unavailable check blocks enrollment/password changes. The deployment process does not invent or enroll the owner's factor.
+The owner selects a character and username, chooses a password of 6–256 characters and optionally enables Google Authenticator. If enabled, they scan the QR, verify the current code and save recovery codes. Password safety checking uses the Have I Been Pwned k-anonymity range API; only a SHA-1 prefix is sent. An unavailable check blocks enrollment/password changes. The deployment process does not invent or enroll the owner's factor.
 
 ## Recovery and encrypted restore
 

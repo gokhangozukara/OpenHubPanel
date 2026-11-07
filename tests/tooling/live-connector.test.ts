@@ -20,6 +20,8 @@ let database: DatabaseSync;
 let server: Server;
 let base: string;
 let key: string;
+let sends: number;
+let pushFailure: boolean;
 it("accepts the legacy session bridge only from loopback with the exact private token and actor", () => {
   const make = (remoteAddress: string, actor: string, value: string) => ({
     socket: { remoteAddress },
@@ -46,6 +48,8 @@ it("keeps legacy editor sign-in destinations local and narrowly allowlisted", ()
     expect(safeNext(target)).toBe("/legacy");
 });
 beforeEach(async () => {
+  sends = 0;
+  pushFailure = false;
   directory = mkdtempSync(path.join(tmpdir(), "openhub-connector-"));
   const filename = path.join(directory, "source.sqlite");
   const keyFile = path.join(directory, "connector.key");
@@ -61,6 +65,9 @@ beforeEach(async () => {
   database.exec(
     `CREATE TABLE apps(slug TEXT PRIMARY KEY); CREATE TABLE app_config(slug TEXT PRIMARY KEY, ${fields.join(",")},popup_version INTEGER DEFAULT 0,updated_at TEXT,fcm_service_account TEXT DEFAULT 'synthetic-private-path'); INSERT INTO apps VALUES('example'); INSERT INTO app_config(slug,popup_frequency) VALUES('example','once');`,
   );
+  database.exec(
+    "ALTER TABLE apps ADD COLUMN name TEXT; ALTER TABLE apps ADD COLUMN package TEXT; CREATE TABLE notifications(id INTEGER PRIMARY KEY,slug TEXT,title TEXT,body TEXT,status TEXT,detail TEXT,target_type TEXT,target_app_slug TEXT,target_route TEXT,target_url TEXT,sent_at TEXT DEFAULT (datetime('now')))",
+  );
   const app = express();
   app.use(express.json());
   const router = createConnector({
@@ -69,6 +76,18 @@ beforeEach(async () => {
     databasePath: filename,
     keyFile,
     account: "test-owner",
+    push: {
+      status: () => ({ ready: true, topic: "synthetic-example" }),
+      normalize: (value: Record<string, string>) => {
+        if (value.target_type !== "home") throw new Error("invalid");
+        return { type: "home", app_slug: "", route: "", url: "" };
+      },
+      send: async () => {
+        sends++;
+        if (pushFailure) throw new Error("network timeout");
+        return { status: "sent", detail: "synthetic-delivery" };
+      },
+    },
   });
   app.use("/internal/openhub", router);
   await router.ready;
@@ -95,6 +114,65 @@ async function configuration(section: string) {
   expect(response.status).toBe(200);
   return response.json();
 }
+it("sends a notification once, preserves history and refuses a changed replay", async () => {
+  const config = await configuration("push");
+  const input = {
+    requestId: randomUUID(),
+    revision: config.revision,
+    values: { ...config.values, title: "Synthetic", body: "Fixture only" },
+  };
+  const first = await (await request("/apps/example/settings/push", "PUT", input)).json();
+  expect(first.status).toBe("sent");
+  expect(await (await request("/apps/example/settings/push", "PUT", input)).json()).toEqual(first);
+  expect(sends).toBe(1);
+  expect((await configuration("push")).history[0].title).toBe("Synthetic");
+  expect(
+    (
+      await request("/apps/example/settings/push", "PUT", {
+        ...input,
+        values: { ...input.values, title: "Changed" },
+      })
+    ).status,
+  ).toBe(409);
+  expect(sends).toBe(1);
+});
+it("never retries an uncertain send and rolls back before delivery when audit fails", async () => {
+  const config = await configuration("push");
+  const input = {
+    requestId: randomUUID(),
+    revision: config.revision,
+    values: { ...config.values, title: "Synthetic", body: "Fixture only" },
+  };
+  pushFailure = true;
+  expect((await (await request("/apps/example/settings/push", "PUT", input)).json()).status).toBe("unknown");
+  expect((await (await request("/apps/example/settings/push", "PUT", input)).json()).status).toBe("unknown");
+  expect(sends).toBe(1);
+  database.exec(
+    "CREATE TRIGGER reject_push_audit BEFORE INSERT ON openhub_audit BEGIN SELECT RAISE(ABORT,'fixture'); END",
+  );
+  expect(
+    (await request("/apps/example/settings/push", "PUT", { ...input, requestId: randomUUID() })).status,
+  ).toBe(503);
+  expect(sends).toBe(1);
+});
+it("rejects invalid notification inputs and targets before sending", async () => {
+  const config = await configuration("push");
+  const input = {
+    requestId: randomUUID(),
+    revision: config.revision,
+    values: { ...config.values, title: "Synthetic", body: "Fixture only", target_type: "unsafe" },
+  };
+  expect((await request("/apps/example/settings/push", "PUT", input)).status).toBe(400);
+  expect(
+    (
+      await request("/apps/example/settings/push", "PUT", {
+        ...input,
+        values: { ...input.values, title: "" },
+      })
+    ).status,
+  ).toBe(400);
+  expect(sends).toBe(0);
+});
 it("denies missing/forged service identity and never exposes credential fields", async () => {
   expect((await fetch(`${base}/apps/example/settings/notes`)).status).toBe(404);
   const result = await configuration("notes");

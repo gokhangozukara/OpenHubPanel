@@ -25,10 +25,16 @@ export async function connector(path: string, method = "GET", payload?: unknown)
     body: payload === undefined ? undefined : JSON.stringify(payload),
     redirect: "error",
     cache: "no-store",
-    signal: AbortSignal.timeout(8000),
+    signal: AbortSignal.timeout(path.endsWith("/settings/push") ? 30000 : 8000),
   });
   if (response.status === 409) throw new Error("CONFLICT");
   if (response.status === 404) throw new Error("APPLICATION_NOT_FOUND");
+  if (response.status === 400) {
+    const error = (await response.json().catch(() => ({}))).error;
+    throw new Error(
+      ["PUSH_NOT_CONFIGURED", "INVALID_PUSH_TARGET"].includes(error) ? error : "INVALID_REQUEST",
+    );
+  }
   if (!response.ok || !response.headers.get("content-type")?.includes("application/json"))
     throw new Error("CONNECTOR_UNAVAILABLE");
   const text = await response.text();
@@ -38,7 +44,7 @@ export async function connector(path: string, method = "GET", payload?: unknown)
 export function validTarget(app: string, section: string) {
   if (
     !/^[a-z0-9][a-z0-9-]{0,63}$/.test(app) ||
-    !["ads", "popup", "announce", "update", "pro", "notes"].includes(section)
+    !["ads", "popup", "announce", "update", "pro", "notes", "push"].includes(section)
   )
     throw new Error("APPLICATION_NOT_FOUND");
 }
@@ -136,7 +142,10 @@ export async function saveSettings(
     complete(input.requestId, result);
     return result;
   } catch (error) {
-    if (error instanceof Error && error.message === "CONFLICT") {
+    if (
+      error instanceof Error &&
+      ["CONFLICT", "PUSH_NOT_CONFIGURED", "INVALID_PUSH_TARGET", "INVALID_REQUEST"].includes(error.message)
+    ) {
       const writer = state();
       try {
         transaction(writer, () => {

@@ -64,7 +64,7 @@ const fieldValues = (row, section) =>
 const revision = (row, section) =>
   sha(JSON.stringify({ values: fieldValues(row, section), popup_version: row.popup_version }));
 
-module.exports = function createConnector({ express, sqlite3, databasePath, keyFile, account }) {
+module.exports = function createConnector({ express, sqlite3, databasePath, keyFile, account, push }) {
   const router = express.Router();
   router.use((req, res, next) => {
     res.set("Cache-Control", "private, no-store");
@@ -131,6 +131,7 @@ module.exports = function createConnector({ express, sqlite3, databasePath, keyF
   })();
   ready.catch(() => {});
   router.ready = ready;
+  require("./push.cjs")({ router, connection, ready, account, push, sha });
   router.get("/apps", async (_req, res) => {
     const c = connection();
     try {

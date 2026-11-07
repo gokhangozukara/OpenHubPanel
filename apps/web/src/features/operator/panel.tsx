@@ -9,7 +9,14 @@ import { SignIn } from "./sign-in";
 
 type Field = { name: string; label: string; type: string };
 type Values = Record<string, string | boolean | number>;
-type Configuration = { fields: Field[]; values: Values; revision: string };
+type Configuration = {
+  fields: Field[];
+  values: Values;
+  revision: string;
+  ready?: boolean;
+  topic?: string;
+  history?: { id: number; title: string; body: string; status: string; sent_at: string }[];
+};
 type Audit = {
   security: { id: number; time: number; event: string; target: string; result: string }[];
   settings: { time: string; app: string; section: string; fields: string; request_id: string }[];
@@ -21,8 +28,12 @@ const sectionLabels = {
   update: "Versions",
   pro: "Subscriptions",
   notes: "Notes",
+  push: "Push notifications",
 };
 const errors: Record<string, string> = {
+  PUSH_NOT_CONFIGURED: "Firebase is not connected for this application. No notification was sent.",
+  INVALID_PUSH_TARGET: "Check the notification target and try again.",
+  INVALID_REQUEST: "Check the required fields and their lengths.",
   CHARACTER_INCORRECT: "That is not your character. Select your character to continue.",
   CHARACTER_REQUIRED: "Select your character again before trying your password.",
   INVALID_CHARACTER: "Choose one of the eight characters.",
@@ -67,6 +78,10 @@ export function LivePanel({
   const [audit, setAudit] = useState<Audit | null>(null);
   const [probes, setProbes] = useState<Record<string, string>>({});
   const [checking, setChecking] = useState(false);
+  useEffect(() => {
+    const id = new URLSearchParams(location.search).get("app");
+    if (id && applications.some((app) => app.id === id)) setSelected(id);
+  }, [applications]);
 
   useEffect(() => {
     let alive = true;
@@ -191,12 +206,6 @@ export function LivePanel({
             {app.name}
           </button>
         ))}
-        <a href="/studio" className="sidebar-docs">
-          Studio Team
-        </a>
-        <a href="/legacy" className="sidebar-docs">
-          {t("Existing management")}
-        </a>
       </aside>
       <div className="pilot-main">
         <header className="pilot-topbar">
@@ -364,7 +373,7 @@ export function LivePanel({
 }
 
 type ApiResult = Configuration &
-  Audit & { phase: string; secret: string; qr: string; recoveryCodes?: string[] };
+  Audit & { phase: string; secret: string; qr: string; recoveryCodes?: string[]; status?: string };
 type Call = (path: string, method?: string, data?: unknown) => Promise<ApiResult>;
 
 function PasswordForm({
@@ -464,6 +473,11 @@ function Application({
 }) {
   const { t } = useLocale();
   const [section, setSection] = useState("ads");
+  useEffect(() => {
+    const query = new URLSearchParams(location.search);
+    const tab = query.get("tab");
+    if (query.get("app") === application.id && tab && Object.hasOwn(sectionLabels, tab)) setSection(tab);
+  }, [application.id]);
   return (
     <>
       <div className="page-heading">
@@ -473,9 +487,6 @@ function Application({
             {application.packageName} · {application.version || "—"}
           </p>
         </div>
-        <a className="button secondary" href={application.legacyPath}>
-          {t("Existing management")}
-        </a>
       </div>
       <nav className="owner-tabs" aria-label={t("Application settings")}>
         {Object.entries(sectionLabels).map(([id, label]) => (
@@ -488,14 +499,6 @@ function Application({
             {t(label)}
           </button>
         ))}
-        <a className="button secondary" href={`${application.legacyPath}?tab=push`}>
-          {t("Push notifications")}
-        </a>
-        {application.id === "muzyfol" && (
-          <a className="button secondary" href={`${application.legacyPath}?tab=content`}>
-            {t("Music content")}
-          </a>
-        )}
       </nav>
       <ConfigurationForm
         mfaEnabled={mfaEnabled}
@@ -527,6 +530,7 @@ function ConfigurationForm({
   const [code, setCode] = useState("");
   const [error, setError] = useState("");
   const [saved, setSaved] = useState(false);
+  const [pushResult, setPushResult] = useState("");
   const [busy, setBusy] = useState(false);
   const [pending, setPending] = useState<{ requestId: string; revision: string; values: Values } | null>(
     null,
@@ -566,6 +570,11 @@ function ConfigurationForm({
       setUnknown(false);
       setCode("");
       setSaved(true);
+      if (section === "push") {
+        setPushResult(result.status ?? "unknown");
+        const updated = await call(`/settings/${app}/${section}`);
+        setConfiguration(updated);
+      }
     } catch (value) {
       const name = value instanceof Error ? value.message : "UNKNOWN_OUTCOME";
       setError(name);
@@ -579,7 +588,18 @@ function ConfigurationForm({
   return (
     <section className="card owner-settings">
       <h2>{t(sectionLabels[section as keyof typeof sectionLabels] ?? section)}</h2>
-      <p className="muted">{t("Changes apply to the live application. Review your values before saving.")}</p>
+      <p className="muted">
+        {t(
+          section === "push"
+            ? "Review the application, message and target before sending to live devices."
+            : "Changes apply to the live application. Review your values before saving.",
+        )}
+      </p>
+      {section === "push" && configuration && (
+        <p className="owner-notice">
+          {t(configuration.ready ? "Firebase connected" : "Firebase not connected")} · {configuration.topic}
+        </p>
+      )}
       {error && (
         <p className="owner-notice owner-error" role="alert">
           {message(error)}
@@ -587,7 +607,15 @@ function ConfigurationForm({
       )}
       {saved && (
         <p className="owner-notice" role="status">
-          {t("Saved and recorded in the activity history.")}
+          {t(
+            section === "push"
+              ? pushResult === "sent"
+                ? "Notification sent."
+                : pushResult === "failed"
+                  ? "Firebase rejected the notification. It was not retried."
+                  : "Delivery result is unknown. Check history before sending another notification."
+              : "Saved and recorded in the activity history.",
+          )}
         </p>
       )}
       {!configuration ? (
@@ -613,7 +641,8 @@ function ConfigurationForm({
                 ) : field.type === "multiline" ? (
                   <textarea
                     id={`setting-${field.name}`}
-                    maxLength={4000}
+                    maxLength={section === "push" ? 500 : 4000}
+                    required={section === "push" && field.name === "body"}
                     disabled={busy || unknown}
                     value={String(values[field.name] ?? "")}
                     onChange={(e) => {
@@ -622,7 +651,7 @@ function ConfigurationForm({
                       setPending(null);
                     }}
                   />
-                ) : field.type === "frequency" ? (
+                ) : field.type === "frequency" || field.type === "push-target" ? (
                   <select
                     id={`setting-${field.name}`}
                     value={String(values[field.name])}
@@ -633,7 +662,10 @@ function ConfigurationForm({
                       setPending(null);
                     }}
                   >
-                    {["once", "daily", "always"].map((value) => (
+                    {(field.type === "frequency"
+                      ? ["once", "daily", "always"]
+                      : ["home", "screen", "app", "url"]
+                    ).map((value) => (
                       <option key={value} value={value}>
                         {t(value)}
                       </option>
@@ -645,7 +677,8 @@ function ConfigurationForm({
                     type={field.type === "integer" ? "number" : "text"}
                     min={field.type === "integer" ? 0 : undefined}
                     max={field.type === "integer" ? 1000000 : undefined}
-                    maxLength={4000}
+                    maxLength={section === "push" ? (field.name === "title" ? 100 : 2048) : 4000}
+                    required={section === "push" && field.name === "title"}
                     disabled={busy || unknown}
                     value={String(values[field.name] ?? "")}
                     onChange={(e) => {
@@ -677,9 +710,38 @@ function ConfigurationForm({
             </label>
           )}
           <div className="pilot-actions">
-            <button className="button primary" type="submit" disabled={busy || error === "CONFLICT"}>
-              {t(busy ? "Please wait…" : unknown ? "Check save result" : "Save changes")}
+            <button
+              className="button primary"
+              type="submit"
+              disabled={
+                busy ||
+                error === "CONFLICT" ||
+                (section === "push" && (Boolean(pushResult) || configuration.ready === false))
+              }
+            >
+              {t(
+                busy
+                  ? "Please wait…"
+                  : unknown
+                    ? "Check save result"
+                    : section === "push"
+                      ? "Send notification"
+                      : "Save changes",
+              )}
             </button>
+            {section === "push" && pushResult && (
+              <button
+                className="button secondary"
+                type="button"
+                onClick={() => {
+                  setPushResult("");
+                  setSaved(false);
+                  setValues(configuration.values);
+                }}
+              >
+                {t("New notification")}
+              </button>
+            )}
             {error === "CONFLICT" && (
               <button className="button secondary" type="button" onClick={() => location.reload()}>
                 {t("Reload")}
@@ -687,6 +749,31 @@ function ConfigurationForm({
             )}
           </div>
         </form>
+      )}
+      {section === "push" && configuration?.history && (
+        <div className="table-scroll">
+          <h3>{t("Notification history")}</h3>
+          <table className="app-table">
+            <thead>
+              <tr>
+                <th>{t("Time")}</th>
+                <th>{t("Title")}</th>
+                <th>{t("Message")}</th>
+                <th>{t("Status")}</th>
+              </tr>
+            </thead>
+            <tbody>
+              {configuration.history.map((entry) => (
+                <tr key={entry.id}>
+                  <td>{entry.sent_at} UTC</td>
+                  <td>{entry.title}</td>
+                  <td>{entry.body}</td>
+                  <td>{t(entry.status)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       )}
     </section>
   );

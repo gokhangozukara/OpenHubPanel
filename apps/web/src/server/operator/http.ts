@@ -45,6 +45,8 @@ export async function body(request: Request): Promise<Record<string, unknown>> {
 export function rejection(error: unknown) {
   const message = error instanceof Error ? error.message : "UNAVAILABLE";
   const names = new Set([
+    "PUSH_NOT_CONFIGURED",
+    "INVALID_PUSH_TARGET",
     "INVALID_CHARACTER",
     "CHARACTER_INCORRECT",
     "CHARACTER_REQUIRED",

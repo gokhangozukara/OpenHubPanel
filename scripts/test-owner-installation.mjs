@@ -37,10 +37,28 @@ db.exec(
   `CREATE TABLE apps(slug TEXT PRIMARY KEY,name TEXT,category TEXT,package TEXT,sort INTEGER); CREATE TABLE app_config(slug TEXT PRIMARY KEY,${fields.join(",")},popup_version INTEGER DEFAULT 0,updated_at TEXT,fcm_service_account TEXT DEFAULT 'synthetic-only'); INSERT INTO apps VALUES('example','Example','Tools','invalid.example',0); INSERT INTO app_config(slug,popup_frequency,latest_version) VALUES('example','once','1.0.0');`,
 );
 const fixtureApp = express();
+db.exec(
+  "CREATE TABLE notifications(id INTEGER PRIMARY KEY,slug TEXT,title TEXT,body TEXT,status TEXT,detail TEXT,target_type TEXT,target_app_slug TEXT,target_route TEXT,target_url TEXT,sent_at TEXT DEFAULT (datetime('now')))",
+);
+let syntheticPushes = 0;
 fixtureApp.use(express.json());
 fixtureApp.use(
   "/internal/openhub",
-  createConnector({ express, sqlite3, databasePath: sourceFile, keyFile, account: "fixture-owner" }),
+  createConnector({
+    express,
+    sqlite3,
+    databasePath: sourceFile,
+    keyFile,
+    account: "fixture-owner",
+    push: {
+      status: () => ({ ready: true, topic: "synthetic-example" }),
+      normalize: () => ({ type: "home", app_slug: "", route: "", url: "" }),
+      send: async () => {
+        syntheticPushes++;
+        return { status: "sent", detail: "synthetic-only" };
+      },
+    },
+  }),
 );
 fixtureApp.get("/api/v1/apps/example/config", (_req, res) =>
   res.json({ app: "example", ads: {}, update: {} }),
@@ -341,7 +359,20 @@ try {
   await page.getByLabel("Confirm with your password", { exact: true }).fill(password);
   await page.getByRole("button", { name: "Save changes", exact: true }).click();
   await expect(page.getByText("Saved and recorded in the activity history.", { exact: true })).toBeVisible();
+  await page.getByRole("button", { name: "Push notifications", exact: true }).click();
+  await expect(page.getByText("Firebase connected", { exact: false })).toBeVisible();
+  await page.getByLabel("Title", { exact: true }).fill("Synthetic native push");
+  await page.getByLabel("Message", { exact: true }).fill("No live devices receive this fixture");
+  await page.getByLabel("Confirm with your password", { exact: true }).fill(password);
+  await page.getByRole("button", { name: "Send notification", exact: true }).click();
+  await expect(page.getByText("Notification sent.", { exact: true })).toBeVisible();
+  await expect(page.getByRole("cell", { name: "Synthetic native push", exact: true })).toBeVisible();
+  assert.equal(syntheticPushes, 1);
+  assert.equal(new URL(page.url()).pathname, "/openhub/live");
+  assert.equal(await page.locator('a[href^="/app/"], a[href="/legacy"], a[href="/studio"]').count(), 0);
+  await page.screenshot({ path: path.join(output, "native-push.png"), fullPage: true });
   const backupEnv = {
+    // Real delivery is replaced by the fixture callback above.
     ...env,
     OPERATOR_BACKUP_KEY: randomBytes(32).toString("hex"),
     OPERATOR_BACKUP_DIR: path.join(fixture, "encrypted-backups"),
@@ -391,6 +422,7 @@ try {
           "six-character password activation and sign-in",
           "optional MFA controls and password-confirmed native writes",
           "IP restriction settings and self-lockout rejection",
+          "native push form, authenticated send, history and no legacy navigation",
         ],
         browserErrors: errors,
       },

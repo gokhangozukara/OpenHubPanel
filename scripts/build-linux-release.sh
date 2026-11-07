@@ -30,6 +30,8 @@ done < <(find node_modules/.pnpm -type f \( -iname 'LICENSE*' -o -iname 'NOTICE*
 npm exec --yes --package=pnpm@12.18.0 -- pnpm exec esbuild scripts/operator-bootstrap.ts --bundle --platform=node --format=esm --outfile=.next-release/operator-bootstrap.mjs
 mkdir -p .next-release/connectors
 cp infra/connectors/hubstag.cjs .next-release/connectors/hubstag.cjs
+cp infra/connectors/push.cjs .next-release/connectors/push.cjs
+cp infra/connectors/firebase-push.cjs .next-release/connectors/firebase-push.cjs
 cp infra/connectors/legacy-login.cjs .next-release/connectors/legacy-login.cjs
 cp infra/connectors/legacy-session.cjs .next-release/connectors/legacy-session.cjs
 cp infra/connectors/legacy-session-browser.js .next-release/connectors/legacy-session-browser.js
