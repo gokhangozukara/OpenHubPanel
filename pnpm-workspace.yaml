@@ -1,6 +1,8 @@
 packages:
   - apps/*
   - packages/*
+overrides:
+  esbuild: 0.28.2
 minimumReleaseAgeExclude:
   - "@biomejs/biome@2.6.6"
   - "@biomejs/cli-android-arm64@2.6.6"
@@ -22,6 +24,7 @@ minimumReleaseAgeExclude:
 allowBuilds:
   esbuild: true
   sharp: true
+  sqlite3: true
   "@embedded-postgres/windows-x64": true
   "@embedded-postgres/linux-x64": true
   "@embedded-postgres/linux-arm64": true

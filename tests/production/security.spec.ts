@@ -63,7 +63,7 @@ test("spoofed policy and prefetch headers cannot select or bypass the nonce", as
 });
 
 test("production preview stays closed and errors retain CSP", async ({ request }) => {
-  for (const path of ["/preview", "/missing-page"]) {
+  for (const path of ["/preview", "/pilot", "/missing-page"]) {
     const response = await request.get(path);
     expect(response.status()).toBe(404);
     expect(response.headers()["content-security-policy"]).toContain("frame-ancestors 'none'");

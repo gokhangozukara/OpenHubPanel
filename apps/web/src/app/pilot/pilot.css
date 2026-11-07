@@ -1,0 +1,81 @@
+.pilot-shell {
+  min-height: 100vh;
+}
+.pilot-sidebar {
+  position: fixed;
+  inset: 0 auto 0 0;
+  width: 240px;
+  padding: 22px 12px;
+  border-right: 1px solid var(--border);
+  background: var(--sidebar);
+  overflow-y: auto;
+}
+.pilot-main {
+  margin-left: 240px;
+}
+.pilot-topbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 16px;
+  height: 58px;
+  padding: 0 28px;
+  border-bottom: 1px solid var(--border);
+}
+.pilot-content {
+  padding: 24px 28px;
+  max-width: 1600px;
+  margin: auto;
+}
+.pilot-detail {
+  padding: 24px;
+  max-width: 760px;
+}
+.pilot-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin: 24px 0;
+}
+.pilot-connection {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+@media (max-width: 850px) {
+  .pilot-sidebar {
+    position: static;
+    width: 100%;
+    border-right: 0;
+    border-bottom: 1px solid var(--border);
+    padding: 14px 16px;
+    display: flex;
+    gap: 8px;
+    overflow-x: auto;
+    align-items: center;
+    white-space: nowrap;
+  }
+  .pilot-sidebar .nav-heading,
+  .pilot-sidebar .sidebar-docs {
+    display: none;
+  }
+  .pilot-sidebar .brand {
+    margin-right: 12px;
+  }
+  .pilot-sidebar .brand span {
+    display: none;
+  }
+  .pilot-sidebar .nav-item {
+    width: auto;
+    margin: 0;
+  }
+  .pilot-main {
+    margin-left: 0;
+  }
+  .pilot-content {
+    padding: 20px 16px;
+  }
+  .pilot-topbar {
+    padding: 0 16px;
+  }
+}

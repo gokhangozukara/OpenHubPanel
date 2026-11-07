@@ -1,0 +1,139 @@
+.owner-auth {
+  max-width: 540px;
+  margin: 8vh auto;
+  padding: 32px;
+}
+.owner-auth h1 {
+  font-size: 28px;
+  margin: 22px 0 8px;
+}
+.owner-form {
+  display: grid;
+  gap: 18px;
+  margin-top: 22px;
+}
+.owner-field {
+  display: grid;
+  gap: 8px;
+  font-size: 13px;
+}
+.owner-field input,
+.owner-field textarea,
+.owner-field select {
+  width: 100%;
+  padding: 11px 12px;
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  background: var(--surface);
+  color: var(--text);
+  font: inherit;
+}
+.owner-field input[type="checkbox"] {
+  width: 18px;
+  height: 18px;
+}
+.owner-field:has(input[type="checkbox"]) {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.owner-field textarea {
+  min-height: 100px;
+  resize: vertical;
+}
+.owner-notice {
+  padding: 12px 14px;
+  border-radius: 8px;
+  background: var(--surface-alt, #f0f5f4);
+  font-size: 13px;
+  line-height: 1.6;
+  overflow-wrap: anywhere;
+}
+.owner-error {
+  border: 1px solid #e7a6a6;
+  background: #fff3f3;
+  color: #8e2929;
+}
+.owner-tabs {
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+  margin: 22px 0;
+  padding-bottom: 6px;
+}
+.owner-tabs button {
+  white-space: nowrap;
+}
+.owner-tabs .active {
+  background: var(--accent, #12796d);
+  color: white;
+}
+.owner-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 18px 28px;
+}
+.owner-settings {
+  padding: 24px;
+  max-width: 1000px;
+}
+.owner-settings h2 {
+  margin-bottom: 10px;
+}
+.owner-codes {
+  padding: 16px;
+  border: 1px solid var(--border);
+  overflow-wrap: anywhere;
+}
+.owner-code {
+  display: block;
+  font-family: monospace;
+  padding: 5px 0;
+  font-size: 13px;
+}
+.owner-secret {
+  overflow-wrap: anywhere;
+  user-select: all;
+}
+.owner-qr {
+  display: block;
+  width: 240px;
+  height: 240px;
+  max-width: 100%;
+  margin: 12px auto;
+}
+.owner-account {
+  display: grid;
+  gap: 12px;
+  padding: 24px;
+  max-width: 760px;
+}
+.owner-audit {
+  max-height: 600px;
+  overflow: auto;
+  font-size: 13px;
+}
+.owner-audit td {
+  vertical-align: top;
+  overflow-wrap: anywhere;
+}
+.owner-identity {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+@media (max-width: 600px) {
+  .owner-auth {
+    margin: 24px 12px;
+    padding: 24px 18px;
+  }
+  .owner-grid {
+    grid-template-columns: 1fr;
+  }
+  .owner-settings {
+    padding: 18px;
+  }
+  .owner-identity .muted {
+    display: none;
+  }
+}

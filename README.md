@@ -6,7 +6,7 @@ Too many projects means too many admin panels. OpenHubPanel is being built to br
 
 Use it as an application's admin panel, or as a hub for several. Connect a project, give your team the access they need, and get daily work done without rebuilding the same management screens each time.
 
-This is early development. You can run the local interface today; real sign-in, invitations, and application connections are still being built. **Do not use it to manage production or customer data yet.**
+This is early development. The local preview is available, and an explicitly scoped [single-owner live installation](docs/deployment/owner-installation.md) supports real sign-in and configuration management for the maintainer's existing applications. General client workspaces, invitations and arbitrary integrations are still being built. **The general multi-client product is not ready for production or customer data.**
 
 ![OpenHubPanel local preview with synthetic workspace, application, and team data](docs/screenshots/local-preview.png)
 
@@ -37,7 +37,7 @@ An API integration will let you work inside OpenHubPanel using one local session
 
 ## What works now
 
-The repository includes a Next.js interface, application search, workspace switching, team and activity previews, themes, three interface languages, and sample dialogs. Underneath it are shared schemas, initial security helpers, PostgreSQL row-level security, a minimal worker, and CI checks. These are foundations, not a finished administration system.
+The repository includes a Next.js interface, application search, workspace switching, team and activity previews, themes, three interface languages, and sample dialogs. Underneath it are shared schemas, initial security helpers, PostgreSQL row-level security, a minimal worker, and CI checks. The separate single-owner adapter adds mandatory password/TOTP, revocable sessions, recovery, native configuration forms and audited writes for one compatible existing installation. These do not complete the general administration product.
 
 Read the [project status](PROJECT_STATUS.md) for the boundary between working code and planned features. Start development with the [setup guide](docs/DEVELOPMENT.md). See the [vision](docs/product/vision.md), [roadmap](docs/roadmap/implementation.md), and [security design](docs/architecture/security.md) for the intended product.
 
