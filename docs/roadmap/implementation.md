@@ -2,7 +2,7 @@
 
 A phase is complete only when acceptance has evidence. This describes the target product; [project status](../../PROJECT_STATUS.md) records delivery. Foundation/preview do not complete P0.
 
-The general workspace MVP now implements the core authentication, workspace management and scoped connector paths on its feature branch. Its [acceptance record](../research/general-workspace-mvp.md) separates verified PostgreSQL/browser behavior from remaining complete HTTP-write, UI-state and operational release acceptance. This does not mark every phase below complete.
+The general workspace MVP now implements the core authentication, workspace management and scoped connector paths on its feature branch. Its [acceptance record](../research/general-workspace-mvp.md) records verified PostgreSQL behavior, independent-HTTPS title writes and the complete requested UI-state gate. Operational restore/load/outbox release acceptance remains separate. This does not mark every phase below complete.
 
 | Phase                 | Scope                                                                                           | Acceptance                                                                                                                                       |
 | --------------------- | ----------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------ |

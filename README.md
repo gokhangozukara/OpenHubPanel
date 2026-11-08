@@ -41,7 +41,7 @@ An API integration will let you work inside OpenHubPanel using one local session
 
 ## What works now
 
-The repository includes the general workspace MVP, a separate synthetic preview, three interface languages, PostgreSQL RLS, shared permission/connector contracts, a minimal worker and CI checks. The single-owner delivery adds native application registration/configuration, compatible-host push, independent empty storage, public configuration URLs and audited writes. General API integration supports article reads and separately approved title changes; its complete independent-HTTP write trial remains open.
+The repository includes the general workspace MVP, a separate synthetic preview, three interface languages, PostgreSQL RLS, shared permission/connector contracts, a minimal worker and CI checks. The single-owner delivery adds native application registration/configuration, compatible-host push, independent empty storage, public configuration URLs and audited writes. General API integration supports article reads and separately approved title changes; its independent-HTTPS write trial and comprehensive UI-state MVP gate pass with local synthetic fixtures. See the [LOOP-2 evidence](docs/research/loop-2-release-gate.md).
 
 Read the [project status](PROJECT_STATUS.md) for the boundary between working code and planned features. Start development with the [setup guide](docs/DEVELOPMENT.md). See the [vision](docs/product/vision.md), [roadmap](docs/roadmap/implementation.md), and [security design](docs/architecture/security.md) for the intended product.
 
