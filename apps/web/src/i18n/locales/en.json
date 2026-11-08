@@ -602,5 +602,12 @@
   "Enter a valid HTTPS URL.": "Enter a valid HTTPS URL.",
   "Check the highlighted fields.": "Check the highlighted fields.",
   "Check result": "Check result",
-  "No members yet.": "No members yet."
+  "No members yet.": "No members yet.",
+  "Your password is required. An authenticator code is needed unless this device is trusted.": "Your password is required. An authenticator code is needed unless this device is trusted.",
+  "Trust this device for 30 days": "Trust this device for 30 days",
+  "Your password is still required. Do not trust a shared device.": "Your password is still required. Do not trust a shared device.",
+  "Trusted devices can skip sign-in codes for 30 days. Sensitive actions still require a current code. Sessions expire after 15 minutes idle or 8 hours total.": "Trusted devices can skip sign-in codes for 30 days. Sensitive actions still require a current code. Sessions expire after 15 minutes idle or 8 hours total.",
+  "Forget this trusted device": "Forget this trusted device",
+  "Device trust removed. Your next sign-in will require an authenticator code.": "Device trust removed. Your next sign-in will require an authenticator code.",
+  "All sessions and trusted devices have been revoked.": "All sessions and trusted devices have been revoked."
 }

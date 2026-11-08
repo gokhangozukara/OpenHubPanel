@@ -8,24 +8,26 @@ Repository: [gokhangozukara/OpenHubPanel](https://github.com/gokhangozukara/Open
 
 The `feat/general-workspace-mvp` branch adds a separate working general product at `/workspace`: PostgreSQL multi-user password/TOTP, restricted recovery, revocable sessions, workspaces, four roles, members/invitations/ownership, applications, encrypted connections and scoped audit. It uses real APIs and keeps the single-owner `/live` adapter separate. This branch has not been deployed to the live installation. See [setup](docs/deployment/general-workspaces.md), [ADR-010](docs/decisions/010-general-workspace-identity.md) and [acceptance evidence](docs/research/general-workspace-mvp.md).
 
-General MVP verification during implementation: 93 unit tests, 37 real PostgreSQL checks and 25 standalone-production browser scenarios, including real operator CLIs, two workspaces/users, six-character password re-login, mandatory TOTP, invitation acceptance, connection lifecycle, mobile/three languages/automated AA and revocation. The [LOOP-2 evidence](docs/research/loop-2-release-gate.md) records the completed independent-HTTPS write and comprehensive state/accessibility matrix: 20/20 requested MVP criteria, 10/10 bounded acceptance. General restore/load/operational release work remains open.
+LOOP-2 baseline verification: 93 unit tests, 37 real PostgreSQL checks and 25 standalone-production browser scenarios, including real operator CLIs, two workspaces/users, six-character password re-login, mandatory TOTP, invitation acceptance, connection lifecycle, mobile/three languages/automated AA and revocation. The [LOOP-2 evidence](docs/research/loop-2-release-gate.md) records the completed independent-HTTPS write and comprehensive state/accessibility matrix: 20/20 requested MVP criteria, 10/10 bounded acceptance. General restore/load/operational release work remains open.
+
+The subsequent [trusted-browser update](docs/research/trusted-devices.md) adds an opt-in 30-day sign-in-code exception after verified TOTP. Passwords and sensitive-action TOTP remain required; expiry does not slide, and security controls can revoke trust. Additional verification passes 93 unit tests, 44 real PostgreSQL checks, 17 preview tests and 4 production security tests plus 30 general browser scenarios. This change remains on the feature branch, without a live migration or deployment.
 
 The owner's explicitly requested first live installation now has a separate [single-owner adapter](docs/deployment/owner-installation.md): Character selection, username and six-character-minimum Argon2id passwords, optional TOTP at every enabled sign-in, IP allowlists, opaque revocable sessions, restricted recovery/manual re-enrollment, native forms for six configuration sections and push delivery/history, version preconditions, per-save step-up, persistent idempotency, transactional host audit and encrypted identity backup/restore. It reads real application metadata through a narrow host connector. The owner has completed activation as the first live account. At the owner's request, the old panel links/templates/login have been removed from the running installation; native push replaces the old notification page. This is a single-instance compatibility delivery, not the general multi-client P0. Studio and specialized music workflows are not native features.
 
-| Area                   | Status                                                                                                                                    |
-| ---------------------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
-| Identity/license       | OpenHubPanel; MIT; Gokhan Gozukara                                                                                                        |
-| Repository conventions | English names, code, comments, and documentation                                                                                          |
-| Interface languages    | English, Turkish, German; shared catalogs, remembered selection                                                                           |
-| Foundation             | Node 24, pnpm 12.18.0, strict TypeScript, six app/package workspaces, pinned lockfile                                                     |
-| Database               | Separate application login, FORCE RLS, membership and append-only audit foundation                                                        |
-| Infrastructure         | Pinned images, PostgreSQL/Redis Compose, safe health/protected readiness; minimal ping worker                                             |
-| Interface              | Compact workspace, grouped/collapsible sidebar, scoped keyboard search, application shortcuts/filters, three languages                    |
-| Preview boundary       | Synthetic preview only; production preview disabled; legacy /api/v1 remains 503; general /api/general is separate                         |
-| Real authentication    | Separate general PostgreSQL password/mandatory-TOTP/recovery/sessions; owner character/password/optional-TOTP/IP policy remains separate  |
-| Real management        | General workspace/member/invitation/application/connection/audit services and UI; six native owner configuration sections remain separate |
-| Connectors/outbox      | Scoped 1.0 article adapter and durable intents; independent HTTPS write trial verified; background processing remains open                |
-| Release/pilot          | First live owner active; sign-in preferences and native push deployed; old panel removed from runtime                                     |
+| Area                   | Status                                                                                                                                                     |
+| ---------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Identity/license       | OpenHubPanel; MIT; Gokhan Gozukara                                                                                                                         |
+| Repository conventions | English names, code, comments, and documentation                                                                                                           |
+| Interface languages    | English, Turkish, German; shared catalogs, remembered selection                                                                                            |
+| Foundation             | Node 24, pnpm 12.18.0, strict TypeScript, six app/package workspaces, pinned lockfile                                                                      |
+| Database               | Separate application login, FORCE RLS, membership and append-only audit foundation                                                                         |
+| Infrastructure         | Pinned images, PostgreSQL/Redis Compose, safe health/protected readiness; minimal ping worker                                                              |
+| Interface              | Compact workspace, grouped/collapsible sidebar, scoped keyboard search, application shortcuts/filters, three languages                                     |
+| Preview boundary       | Synthetic preview only; production preview disabled; legacy /api/v1 remains 503; general /api/general is separate                                          |
+| Real authentication    | Separate general PostgreSQL password/TOTP enrollment/trusted browsers/recovery/sessions; owner character/password/optional-TOTP/IP policy remains separate |
+| Real management        | General workspace/member/invitation/application/connection/audit services and UI; six native owner configuration sections remain separate                  |
+| Connectors/outbox      | Scoped 1.0 article adapter and durable intents; independent HTTPS write trial verified; background processing remains open                                 |
+| Release/pilot          | First live owner active; sign-in preferences and native push deployed; old panel removed from runtime                                                      |
 
 ## Verification evidence
 

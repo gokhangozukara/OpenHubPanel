@@ -4,6 +4,9 @@ import type { Database, Transaction } from "@openhubpanel/db";
 import { generateSecret, verify } from "otplib";
 import { digest, secretBox, token } from "./crypto";
 
+export const trustedDeviceMaxAge = 30 * 24 * 60 * 60;
+type LoginResult = { phase: string; challenge: string; secret?: string; session?: string };
+
 export type Identity = { userId: string; sessionHash: string };
 const emailAddress = (value: string) => {
   const normalized = value.trim().toLowerCase();
@@ -77,6 +80,18 @@ export function generalAuth(db: Database, encryptionKey: string, passwordCheck =
     await tx`INSERT INTO hub_identity.sessions(hash,user_id) VALUES (${digest(raw)},${userId})`;
     return raw;
   }
+  async function clearLimits(tx: Transaction, email: string, browser: string) {
+    await tx`DELETE FROM hub_identity.rate_limits WHERE key IN (${digest(`account:${email}`)},${digest(`device:${browser}`)},${digest(`entry:${browser}`)})`;
+  }
+  async function trust(tx: Transaction, userId: string, browser: string, factor: string, password: string) {
+    const raw = token();
+    await tx`INSERT INTO hub_identity.trusted_devices(hash,user_id,browser_hash,factor_hash,password_hash)
+      VALUES(${digest(raw)},${userId},${digest(browser)},${digest(factor)},${digest(password)})
+      ON CONFLICT(user_id,browser_hash) DO UPDATE SET hash=excluded.hash,factor_hash=excluded.factor_hash,
+      password_hash=excluded.password_hash,created_at=now(),expires_at=now()+interval '30 days',revoked=false`;
+    await event(tx, "device.trusted", userId);
+    return raw;
+  }
   async function within<T>(raw: string, action: (tx: Transaction, identity: Identity) => Promise<T>) {
     if (!raw || raw.length > 256) throw new Error("UNAUTHENTICATED");
     return db.begin(async (tx) => {
@@ -147,7 +162,14 @@ export function generalAuth(db: Database, encryptionKey: string, passwordCheck =
         return challenge(tx, id, browser, "enroll");
       });
     },
-    async login(email: string, password: string, browser: string, ip: string, recovery?: string) {
+    async login(
+      email: string,
+      password: string,
+      browser: string,
+      ip: string,
+      recovery?: string,
+      trustedDevice?: string,
+    ): Promise<LoginResult> {
       const address = emailAddress(email);
       await limited([`account:${address}`, `ip:${ip}`, `device:${browser}`]);
       const rows = await db`SELECT id,password_hash,active FROM hub_identity.accounts WHERE email=${address}`;
@@ -169,8 +191,9 @@ export function generalAuth(db: Database, encryptionKey: string, passwordCheck =
       return db
         .begin(async (tx) => {
           const id = String(account.id);
-          if (!(await tx`SELECT id FROM hub_identity.accounts WHERE id=${id} AND active FOR UPDATE`).length)
-            return null;
+          const current =
+            await tx`SELECT password_hash FROM hub_identity.accounts WHERE id=${id} AND active FOR UPDATE`;
+          if (!current.length || current[0]?.password_hash !== account.password_hash) return null;
           if (recovery) {
             const used =
               await tx`DELETE FROM hub_identity.recovery_codes WHERE user_id=${id} AND hash=${digest(recovery)} RETURNING user_id`;
@@ -180,11 +203,24 @@ export function generalAuth(db: Database, encryptionKey: string, passwordCheck =
             }
             await tx`UPDATE hub_identity.sessions SET revoked=true WHERE user_id=${id}`;
             await tx`UPDATE hub_identity.challenges SET consumed=true WHERE user_id=${id}`;
+            await tx`UPDATE hub_identity.trusted_devices SET revoked=true WHERE user_id=${id}`;
             await event(tx, "recovery.accepted", id);
             return challenge(tx, id, browser, "recovery");
           }
-          const enrolled = (await tx`SELECT user_id FROM hub_identity.factors WHERE user_id=${id}`).length;
+          const factors = await tx`SELECT secret FROM hub_identity.factors WHERE user_id=${id} FOR UPDATE`;
+          const enrolled = factors.length;
           await event(tx, "password.accepted", id);
+          if (enrolled && trustedDevice?.length === 43) {
+            const devices =
+              await tx`SELECT hash FROM hub_identity.trusted_devices WHERE hash=${digest(trustedDevice)} AND user_id=${id}
+              AND browser_hash=${digest(browser)} AND factor_hash=${digest(String(factors[0]?.secret))}
+              AND password_hash=${digest(String(current[0]?.password_hash))} AND NOT revoked AND expires_at>now() FOR UPDATE`;
+            if (devices.length) {
+              await event(tx, "device.accepted", id);
+              await clearLimits(tx, address, browser);
+              return { phase: "authenticated", challenge: "", session: await session(tx, id) };
+            }
+          }
           return challenge(tx, id, browser, enrolled ? "login" : "enroll");
         })
         .then((result) => {
@@ -192,10 +228,10 @@ export function generalAuth(db: Database, encryptionKey: string, passwordCheck =
           return result;
         });
     },
-    async complete(raw: string, browser: string, code: string) {
+    async complete(raw: string, browser: string, code: string, rememberDevice = false) {
       const result = await db.begin(async (tx) => {
         const rows =
-          await tx`SELECT c.*,a.active,a.email FROM hub_identity.challenges c JOIN hub_identity.accounts a ON a.id=c.user_id
+          await tx`SELECT c.*,a.active,a.email,a.password_hash FROM hub_identity.challenges c JOIN hub_identity.accounts a ON a.id=c.user_id
           WHERE c.hash=${digest(raw)} AND c.browser_hash=${digest(browser)} AND NOT c.consumed AND c.expires_at>now() AND c.attempts<5 FOR UPDATE OF c,a`;
         const c = rows[0];
         if (!c?.active) return null;
@@ -222,6 +258,7 @@ export function generalAuth(db: Database, encryptionKey: string, passwordCheck =
         }
         let recoveryCodes: string[] | undefined;
         if (c.purpose !== "login") {
+          await tx`UPDATE hub_identity.trusted_devices SET revoked=true WHERE user_id=${c.user_id}`;
           await tx`UPDATE hub_identity.sessions SET revoked=true WHERE user_id=${c.user_id}`;
           await tx`UPDATE hub_identity.challenges SET consumed=true WHERE user_id=${c.user_id}`;
           await tx`INSERT INTO hub_identity.factors(user_id,secret,last_step) VALUES(${c.user_id},${encrypted},${Number(verified.timeStep)})
@@ -235,16 +272,29 @@ export function generalAuth(db: Database, encryptionKey: string, passwordCheck =
           await tx`UPDATE hub_identity.challenges SET consumed=true WHERE hash=${digest(raw)}`;
         }
         await event(tx, "factor.accepted", String(c.user_id));
-        await tx`DELETE FROM hub_identity.rate_limits WHERE key IN (${digest(`account:${c.email}`)},${digest(`device:${browser}`)},${digest(`entry:${browser}`)})`;
-        return { session: await session(tx, String(c.user_id)), recoveryCodes };
+        await clearLimits(tx, String(c.email), browser);
+        const trustedDevice = rememberDevice
+          ? await trust(tx, String(c.user_id), browser, String(encrypted), String(c.password_hash))
+          : undefined;
+        return { session: await session(tx, String(c.user_id)), recoveryCodes, trustedDevice };
       });
       if (!result) throw new Error("INVALID_CODE");
       return result;
     },
     async revoke(raw: string, all = false) {
       return within(raw, async (tx, identity) => {
+        if (all) await tx`SELECT id FROM hub_identity.accounts WHERE id=${identity.userId} FOR UPDATE`;
         await tx`UPDATE hub_identity.sessions SET revoked=true WHERE user_id=${identity.userId} AND (${all} OR hash=${identity.sessionHash})`;
+        if (all)
+          await tx`UPDATE hub_identity.trusted_devices SET revoked=true WHERE user_id=${identity.userId}`;
         await event(tx, "session.revoked", identity.userId);
+      });
+    },
+    async forgetDevice(raw: string, browser: string) {
+      return within(raw, async (tx, identity) => {
+        await tx`SELECT id FROM hub_identity.accounts WHERE id=${identity.userId} FOR UPDATE`;
+        await tx`UPDATE hub_identity.trusted_devices SET revoked=true WHERE user_id=${identity.userId} AND browser_hash=${digest(browser)}`;
+        await event(tx, "device.revoked", identity.userId);
       });
     },
     async stepUp(tx: Transaction, identity: Identity, code: string) {

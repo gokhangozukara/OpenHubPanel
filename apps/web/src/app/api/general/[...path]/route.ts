@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { assertTrustedOrigin, safeTokenEqual } from "@openhubpanel/security";
 import { cookies } from "next/headers";
+import { trustedDeviceMaxAge } from "@/server/general/auth";
 import { token } from "@/server/general/crypto";
 import { generalEnabled, generalRuntime } from "@/server/general/runtime";
 import { clientIp } from "@/server/operator/access";
@@ -14,6 +15,7 @@ const names = {
   challenge: "__Host-hubgeneral_challenge",
   csrf: "__Host-hubgeneral_csrf",
   browser: "__Host-hubgeneral_browser",
+  trustedDevice: "__Host-hubgeneral_trusted_device",
 };
 const headers = { "Cache-Control": "private, no-store, no-transform", "Referrer-Policy": "no-referrer" };
 function json(value: unknown, status = 200) {
@@ -126,6 +128,11 @@ async function post(request: Request, context: RouteContext<"/api/general/[...pa
     const { path } = await context.params;
     const action = path.join("/");
     const { auth, workspaces, connections } = generalRuntime();
+    const establishSession = (session: string) => {
+      jar.set(names.session, session, { ...options, maxAge: 28800 });
+      jar.set(names.challenge, "", { ...options, maxAge: 0 });
+      jar.set(names.csrf, token(), { ...options, maxAge: 28800 });
+    };
     const raw = jar.get(names.session)?.value ?? "";
     const browser = jar.get(names.browser)?.value;
     if (browser?.length !== 43) throw new Error("FORBIDDEN");
@@ -143,20 +150,40 @@ async function post(request: Request, context: RouteContext<"/api/general/[...pa
                 browser,
                 ip,
                 typeof input.recovery === "string" ? input.recovery : undefined,
+                jar.get(names.trustedDevice)?.value,
               );
+      if ("session" in result && typeof result.session === "string" && result.session) {
+        establishSession(result.session);
+        return json({ authenticated: true, phase: "authenticated" });
+      }
+      if (action === "login") jar.set(names.trustedDevice, "", { ...options, maxAge: 0 });
       jar.set(names.challenge, result.challenge, { ...options, maxAge: 300 });
       return json({ phase: result.phase, ...(result.secret ? { secret: result.secret } : {}) });
     }
     if (action === "complete") {
-      const result = await auth.complete(jar.get(names.challenge)?.value ?? "", browser, str("code"));
-      jar.set(names.session, result.session, { ...options, maxAge: 28800 });
-      jar.set(names.challenge, "", { ...options, maxAge: 0 });
-      jar.set(names.csrf, token(), { ...options, maxAge: 28800 });
+      const result = await auth.complete(
+        jar.get(names.challenge)?.value ?? "",
+        browser,
+        str("code"),
+        input.rememberDevice === true,
+      );
+      establishSession(result.session);
+      jar.set(names.trustedDevice, result.trustedDevice ?? "", {
+        ...options,
+        maxAge: result.trustedDevice ? trustedDeviceMaxAge : 0,
+      });
+      if (result.trustedDevice) jar.set(names.browser, browser, { ...options, maxAge: trustedDeviceMaxAge });
       return json({ authenticated: true, recoveryCodes: result.recoveryCodes });
     }
     if (action === "logout") {
       await auth.revoke(raw, input.all === true);
       jar.set(names.session, "", { ...options, maxAge: 0 });
+      if (input.all === true) jar.set(names.trustedDevice, "", { ...options, maxAge: 0 });
+      return json({ ok: true });
+    }
+    if (action === "forget-device") {
+      await auth.forgetDevice(raw, browser);
+      jar.set(names.trustedDevice, "", { ...options, maxAge: 0 });
       return json({ ok: true });
     }
     if (action === "workspaces") return json(await workspaces.create(raw, str("name")));

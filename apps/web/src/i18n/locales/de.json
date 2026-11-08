@@ -602,5 +602,12 @@
   "Enter a valid HTTPS URL.": "Geben Sie eine gültige HTTPS-Adresse ein.",
   "Check the highlighted fields.": "Prüfen Sie die markierten Felder.",
   "Check result": "Ergebnis prüfen",
-  "No members yet.": "Noch keine Mitglieder."
+  "No members yet.": "Noch keine Mitglieder.",
+  "Your password is required. An authenticator code is needed unless this device is trusted.": "Ihr Passwort ist erforderlich. Ohne vertrauenswürdiges Gerät wird auch ein Authenticator-Code benötigt.",
+  "Trust this device for 30 days": "Diesem Gerät 30 Tage vertrauen",
+  "Your password is still required. Do not trust a shared device.": "Ihr Passwort bleibt erforderlich. Vertrauen Sie keinem gemeinsam genutzten Gerät.",
+  "Trusted devices can skip sign-in codes for 30 days. Sensitive actions still require a current code. Sessions expire after 15 minutes idle or 8 hours total.": "Vertrauenswürdige Geräte können Anmeldecodes 30 Tage überspringen. Sensible Aktionen benötigen weiterhin einen aktuellen Code. Sitzungen enden nach 15 Minuten Inaktivität oder insgesamt 8 Stunden.",
+  "Forget this trusted device": "Diesem Gerät nicht mehr vertrauen",
+  "Device trust removed. Your next sign-in will require an authenticator code.": "Das Gerätevertrauen wurde entfernt. Bei der nächsten Anmeldung wird ein Authenticator-Code benötigt.",
+  "All sessions and trusted devices have been revoked.": "Alle Sitzungen und vertrauenswürdigen Geräte wurden widerrufen."
 }

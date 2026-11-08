@@ -602,5 +602,12 @@
   "Enter a valid HTTPS URL.": "Geçerli bir HTTPS adresi girin.",
   "Check the highlighted fields.": "İşaretli alanları kontrol edin.",
   "Check result": "Sonucu kontrol et",
-  "No members yet.": "Henüz üye yok."
+  "No members yet.": "Henüz üye yok.",
+  "Your password is required. An authenticator code is needed unless this device is trusted.": "Parolanız gereklidir. Bu cihaza güvenilmiyorsa doğrulama kodu da istenir.",
+  "Trust this device for 30 days": "Bu cihaza 30 gün güven",
+  "Your password is still required. Do not trust a shared device.": "Parolanız yine gereklidir. Ortak kullanılan bir cihaza güvenmeyin.",
+  "Trusted devices can skip sign-in codes for 30 days. Sensitive actions still require a current code. Sessions expire after 15 minutes idle or 8 hours total.": "Güvenilen cihazlarda 30 gün giriş kodu sorulmaz. Hassas işlemlerde güncel kod gerekir. Oturumlar 15 dakika işlem yapılmadığında veya toplam 8 saat sonra sona erer.",
+  "Forget this trusted device": "Bu cihazın güvenini kaldır",
+  "Device trust removed. Your next sign-in will require an authenticator code.": "Cihaz güveni kaldırıldı. Bir sonraki girişinizde doğrulama kodu istenecek.",
+  "All sessions and trusted devices have been revoked.": "Tüm oturumlar ve güvenilen cihazlar iptal edildi."
 }

@@ -2,7 +2,7 @@
 
 Recorded: 2026-11-08. Scope: `feat/general-workspace-mvp`, local synthetic fixtures only. No VPS connection, deployment, production data change or Firebase delivery was performed.
 
-This checklist measures the requested MVP acceptance, not overall product maturity or independent security certification.
+This checklist records the LOOP-1/LOOP-2 baseline acceptance, not overall product maturity or independent security certification. The later user-requested [trusted-browser policy](../decisions/011-trusted-general-devices.md) changes only the remembered sign-in requirement; its [additional evidence](trusted-devices.md) is recorded separately.
 
 ## Evidence sources
 

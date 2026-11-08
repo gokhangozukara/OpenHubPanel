@@ -1,0 +1,11 @@
+# ADR-011: Optional 30-day trust for general sign-in
+
+Status: accepted at the user's explicit request. Recorded: 2026-11-08. Supersedes ADR-004/ADR-010's every-sign-in TOTP requirement only for this bounded general-product sign-in exception; enrollment, recovery and sensitive-action TOTP remain mandatory. The separate `/live` owner adapter is unchanged.
+
+After successful TOTP, a default-unchecked **Trust this device for 30 days** option may issue a random 256-bit opaque device token. The token is a Secure, HttpOnly, SameSite=Strict, host-only cookie, never returned in JSON or stored in browser script storage. The server stores only its SHA-256 hash, account/browser binding, fingerprints of the current encrypted factor and password hash, fixed issuance/expiry and revocation state. The companion opaque browser cookie persists for the same 30 days. This identifies a browser profile, not hardware; copied complete cookies are bearer credentials. Shared devices should not be trusted.
+
+Every new session still requires a verified current password, normal abuse limits, active account and factor, and a server-side device lookup. A valid record skips only the sign-in code and creates an ordinary 15-minute-idle/eight-hour session. It cannot authorize management directly or satisfy sensitive-action step-up. The 30-day expiry is fixed and never renewed by remembered logins. Only another successful TOTP with explicit consent renews trust.
+
+Invalid, expired, other-account, other-browser, changed-password or changed-factor records fall back to TOTP. Recovery always overrides remembered trust and revokes it before restricted replacement enrollment. Factor replacement revokes previous trust. Regular sign-out retains trust; **Forget this trusted device** revokes this account/browser's records; **Sign out on all devices** revokes all sessions and trusted devices. Account-row locking serializes remembered login with revocation. Issuance, session creation and security events commit together; audit failure cannot leave successful trust or a session.
+
+Migration `0005_trusted_devices.sql` adds server-only identity storage. Restore and supervised recovery must revoke trusted-device records along with sessions/challenges; restored cookies must not regain authority. There is no production bypass flag or automatically extended remember period.

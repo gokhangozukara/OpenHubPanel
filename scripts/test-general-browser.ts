@@ -15,6 +15,7 @@ import { createDatabase } from "../packages/db/src/index";
 import { contentService } from "./fixtures/content-service";
 import { checkIndependentBrowser } from "./fixtures/general-http-browser";
 import { checkGeneralStates } from "./fixtures/general-states-browser";
+import { checkTrustedBrowser } from "./fixtures/general-trusted-browser";
 
 const root = process.cwd();
 const webRequire = createRequire(path.join(root, "apps/web/package.json"));
@@ -75,7 +76,7 @@ try {
       env: migrationEnv,
       stdio: "pipe",
     });
-  assert.equal(Number((await admin`SELECT count(*) FROM hub_migrations`)[0]?.count), 4);
+  assert.equal(Number((await admin`SELECT count(*) FROM hub_migrations`)[0]?.count), 5);
   await admin.unsafe(`ALTER ROLE openhub_app LOGIN PASSWORD '${appPassword}'`);
   const url = `postgresql://openhub_app:${appPassword}@127.0.0.1:${pgPort}/general_browser`;
   app = createDatabase(url);
@@ -550,6 +551,19 @@ try {
     assert.deepEqual(pageErrors, []);
     assert.deepEqual(consoleErrors, []);
   });
+  await checkTrustedBrowser({
+    page,
+    context,
+    browser,
+    admin,
+    origin,
+    password: userPassword,
+    freshCode,
+    fixture,
+    check,
+  });
+  assert.deepEqual(pageErrors, []);
+  assert.deepEqual(consoleErrors, []);
   console.log(`General production browser: ${passed} scenarios passed.`);
 } finally {
   await browser?.close();

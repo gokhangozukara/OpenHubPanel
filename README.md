@@ -6,7 +6,7 @@ Too many projects means too many admin panels. OpenHubPanel is being built to br
 
 Use it as an application's admin panel, or as a hub for several. Connect a project, give your team the access they need, and get daily work done without rebuilding the same management screens each time.
 
-This is early development. A separate [general workspace MVP](docs/deployment/general-workspaces.md) now provides PostgreSQL accounts, mandatory TOTP, workspaces, roles, invitations, applications and scoped API connections at `/workspace`. The [single-owner installation](docs/deployment/owner-installation.md) continues to support existing applications. The general MVP is developed on `feat/general-workspace-mvp`; it has not been deployed to that live installation. Read the [acceptance evidence and release limits](docs/research/general-workspace-mvp.md) before using real customer data.
+This is early development. A separate [general workspace MVP](docs/deployment/general-workspaces.md) now provides PostgreSQL accounts, mandatory TOTP enrollment with opt-in 30-day trusted browsers, workspaces, roles, invitations, applications and scoped API connections at `/workspace`. The [single-owner installation](docs/deployment/owner-installation.md) continues to support existing applications. The general MVP is developed on `feat/general-workspace-mvp`; it has not been deployed to that live installation. Read the [acceptance evidence and release limits](docs/research/general-workspace-mvp.md) before using real customer data.
 
 ![OpenHubPanel local preview with synthetic workspace, application, and team data](docs/screenshots/local-preview.png)
 

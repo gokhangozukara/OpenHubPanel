@@ -13,6 +13,7 @@ try {
       "0002_general_identity.sql",
       "0003_workspace_management.sql",
       "0004_workspace_connections.sql",
+      "0005_trusted_devices.sql",
     ]) {
       if ((await tx`SELECT name FROM public.hub_migrations WHERE name=${name}`).length) continue;
       // Existing foundation installations must be explicitly reconciled by their operator first.

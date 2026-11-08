@@ -4,11 +4,11 @@ This is an implementation contract, not a claim that these controls are complete
 
 ## Identity assurance
 
-The separate general product follows [ADR-010](../decisions/010-general-workspace-identity.md): password plus mandatory TOTP for every role, PostgreSQL identity and shared rate counters, restricted enrollment recovery and workspace-scoped management. The owner's optional-TOTP policy below applies to the `/live` compatibility adapter only. See [general acceptance evidence](../research/general-workspace-mvp.md) for implemented checks and remaining release work.
+The separate general product follows [ADR-010](../decisions/010-general-workspace-identity.md): mandatory TOTP enrollment for every role and the explicitly requested [30-day trusted-browser sign-in exception](../decisions/011-trusted-general-devices.md), PostgreSQL identity and shared rate counters, restricted enrollment recovery and workspace-scoped management. The owner's optional-TOTP policy below applies to the `/live` compatibility adapter only. See [general acceptance evidence](../research/general-workspace-mvp.md) for implemented checks and remaining release work.
 
 The owner-selected policy in [ADR-008](../decisions/008-owner-sign-in-preferences.md) uses a server-validated character gate before username/password. TOTP is optional; when enabled it is required on every sign-in without trusted-device skipping. Email verifies an address and carries notifications/recovery requests; SMS initially verifies a phone or carries notifications. Neither replaces TOTP, authorizes management, resets MFA, or supplies step-up. A provider failure never enables a weaker sign-in. Google Authenticator implements TOTP; Google sign-in is a separate future OIDC feature. TOTP is not phishing-resistant. Passkeys need a separate verified policy.
 
-Login verifies the password, applies risk/limit checks, then verifies the enrolled factor. Until MFA completes, the user has only an opaque pre-session with no management access. Bind the challenge to user, browser pre-session, and purpose; store expiry, attempts, and consumption server-side. On success consume it and issue a new independent server-session token. Initial MFA challenge limits: 5 minutes and 5 attempts. Record successful and failed security steps.
+General login verifies the password and abuse limits, then verifies the enrolled factor unless a valid unexpired server-side trusted-browser record satisfies the sign-in exception. Sensitive actions always require fresh TOTP. Until MFA completes, the user has only an opaque pre-session with no management access. Bind the challenge to user, browser pre-session, and purpose; store expiry, attempts, and consumption server-side. On success consume it and issue a new independent server-session token. Initial MFA challenge limits: 5 minutes and 5 attempts. Record successful and failed security steps.
 
 ## Passwords
 
@@ -88,7 +88,7 @@ Before uploads ship, verify extension, MIME, and content signature; reject SVG/H
 
 Proposed initial retention: audit 180 days, security events 90 days, raw IP at most 7 days before masking/deletion. Operators must approve/document their requirements; these are product defaults, not compliance claims.
 
-Initial encrypted-backup targets: daily, retained 30 days, RPO 24 hours and RTO 4 hours. Accept these only after a restore exercise; assign an owner and back up encryption keys separately. Restore must revoke old sessions, invitations, reset/MFA challenges, and recovery state. Without a trusted current revocation record, restored factor/recovery state requires re-enrollment rather than reviving old access.
+Initial encrypted-backup targets: daily, retained 30 days, RPO 24 hours and RTO 4 hours. Accept these only after a restore exercise; assign an owner and back up encryption keys separately. Restore must revoke old sessions, trusted-device records, invitations, reset/MFA challenges, and recovery state. Without a trusted current revocation record, restored factor/recovery state requires re-enrollment rather than reviving old access.
 
 ## Future OIDC
 

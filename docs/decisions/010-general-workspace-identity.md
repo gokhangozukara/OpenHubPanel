@@ -2,7 +2,7 @@
 
 Status: accepted for the requested feature branch. Recorded: 2026-11-08.
 
-The general product uses PostgreSQL identity tables in `hub_identity`, authenticated workspace services, `/api/general/*` and `/workspace`. It does not expand the single-owner SQLite `operator_user(id=1)` model. The owner's optional-MFA preference remains specific to `/live`; the general product requires password plus TOTP on every sign-in.
+The general product uses PostgreSQL identity tables in `hub_identity`, authenticated workspace services, `/api/general/*` and `/workspace`. It does not expand the single-owner SQLite `operator_user(id=1)` model. The owner's optional-MFA preference remains specific to `/live`; the general product requires password plus TOTP, with the subsequently requested [30-day trusted-browser exception](011-trusted-general-devices.md) after verified TOTP.
 
 Use the installed maintained Argon2id and otplib implementations. Store opaque session/challenge/recovery/invitation token hashes, encrypted user-bound factors and workspace/connection-bound credentials. Recovery grants replacement-factor enrollment only. Verify TOTP steps atomically across all challenges and sensitive actions.
 

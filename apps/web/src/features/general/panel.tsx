@@ -365,7 +365,11 @@ export function GeneralPanel({ basePath }: { basePath: string }) {
           <section>
             {phase === "login" ? (
               <>
-                <p>{t("An authenticator code is required at every sign-in.")}</p>
+                <p>
+                  {t(
+                    "Your password is required. An authenticator code is needed unless this device is trusted.",
+                  )}
+                </p>
                 <GeneralForm
                   onStart={clearFeedback}
                   title="Sign in"
@@ -379,8 +383,14 @@ export function GeneralPanel({ basePath }: { basePath: string }) {
                   run={(input) =>
                     run(async () => {
                       const result = await api<{ phase: string; secret?: string }>("login", input);
-                      setPhase(result.phase);
-                      setSecret(result.secret ?? "");
+                      if (result.phase === "authenticated") {
+                        await refreshState();
+                        setPhase("login");
+                        setSecret("");
+                      } else {
+                        setPhase(result.phase);
+                        setSecret(result.secret ?? "");
+                      }
                     })
                   }
                 />
@@ -434,7 +444,15 @@ export function GeneralPanel({ basePath }: { basePath: string }) {
                 <GeneralForm
                   onStart={clearFeedback}
                   title="Verify authenticator"
-                  fields={[code]}
+                  fields={[
+                    code,
+                    {
+                      name: "rememberDevice",
+                      label: "Trust this device for 30 days",
+                      type: "checkbox",
+                      optional: true,
+                    },
+                  ]}
                   submit="Verify"
                   disabled={busy || loading}
                   run={(input) =>
@@ -448,6 +466,7 @@ export function GeneralPanel({ basePath }: { basePath: string }) {
                     })
                   }
                 />
+                <p>{t("Your password is still required. Do not trust a shared device.")}</p>
                 <button
                   type="button"
                   onClick={() => {
@@ -933,7 +952,7 @@ export function GeneralPanel({ basePath }: { basePath: string }) {
                 <h2>{t("Security")}</h2>
                 <p>
                   {t(
-                    "Authenticator verification is mandatory. Sessions expire after 15 minutes idle or 8 hours total.",
+                    "Trusted devices can skip sign-in codes for 30 days. Sensitive actions still require a current code. Sessions expire after 15 minutes idle or 8 hours total.",
                   )}
                 </p>
                 <button
@@ -941,9 +960,24 @@ export function GeneralPanel({ basePath }: { basePath: string }) {
                   disabled={busy}
                   onClick={() =>
                     run(async () => {
+                      const result = await api<{ ok: boolean }>("forget-device", {});
+                      if (result.ok !== true) throw new Error("UNAVAILABLE");
+                      setMessage(
+                        "Device trust removed. Your next sign-in will require an authenticator code.",
+                      );
+                    })
+                  }
+                >
+                  {t("Forget this trusted device")}
+                </button>
+                <button
+                  type="button"
+                  disabled={busy}
+                  onClick={() =>
+                    run(async () => {
                       await api("logout", { all: true });
                       await refreshState();
-                      setMessage("All sessions have been revoked.");
+                      setMessage("All sessions and trusted devices have been revoked.");
                     })
                   }
                 >
