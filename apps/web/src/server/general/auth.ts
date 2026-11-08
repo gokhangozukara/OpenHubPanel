@@ -69,6 +69,23 @@ export function generalAuth(db: Database, encryptionKey: string) {
     within,
     passwordHash,
     emailAddress,
+    async enrollInvitation(proof: string, password: string, browser: string) {
+      const encoded = await passwordHash(password);
+      return db.begin(async (tx) => {
+        const invitations = await tx`SELECT * FROM invitation_lookup(${digest(proof)})`;
+        const invitation = invitations[0];
+        if (!invitation) throw new Error("INVALID_INVITATION");
+        const address = String(invitation.email);
+        if ((await tx`SELECT id FROM hub_identity.accounts WHERE email=${address}`).length)
+          throw new Error("SIGN_IN_REQUIRED");
+        const id = randomUUID();
+        await tx`SELECT set_config('app.actor_id',${id},true)`;
+        await tx`INSERT INTO users(id,display_name) VALUES(${id},${address})`;
+        await tx`INSERT INTO hub_identity.accounts(id,email,password_hash) VALUES(${id},${address},${encoded})`;
+        await event(tx, "invitation.enrollment", id);
+        return challenge(tx, id, browser, "enroll");
+      });
+    },
     async createBootstrap() {
       const raw = token();
       await db.begin(async (tx) => {
