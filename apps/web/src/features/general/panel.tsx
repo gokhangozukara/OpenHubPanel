@@ -1,0 +1,964 @@
+"use client";
+
+import { canAssignRole, hasPermission } from "@openhubpanel/security/permissions";
+import { type FormEvent, useCallback, useEffect, useId, useRef, useState } from "react";
+import { LanguageSelector, useLocale } from "@/i18n/provider";
+
+type Workspace = { id: string; name: string; role: string };
+type App = { id: string; name: string; panel_url: string | null; archived: boolean };
+type Member = { user_id: string; role: string; active: boolean };
+type Invitation = {
+  id: string;
+  email: string;
+  role: string;
+  expires_at: string;
+  accepted: boolean;
+  cancelled: boolean;
+};
+type Event = {
+  id: string;
+  action: string;
+  actor_id: string;
+  target_id: string;
+  outcome: string;
+  created_at: string;
+};
+type Snapshot = {
+  workspaceId: string;
+  userId: string;
+  role: string;
+  applications: App[];
+  members: Member[];
+  invitations: Invitation[];
+  events: Event[];
+};
+type Connection = {
+  id: string;
+  application_id: string;
+  name: string;
+  url: string;
+  write_enabled: boolean;
+  disabled: boolean;
+  revision: string;
+  status: string;
+  checked_at: string | null;
+};
+type Articles = {
+  items: { id: string; title: string; status: string; version: number }[];
+  revision: string;
+  writeEnabled: boolean;
+};
+type Field = {
+  name: string;
+  label: string;
+  type?: string;
+  value?: string;
+  optional?: boolean;
+  checked?: boolean;
+  options?: { value: string; label: string }[];
+};
+const roles = ["owner", "admin", "editor", "viewer"];
+const errors: Record<string, string> = {
+  UNAUTHENTICATED: "Your session ended. Please sign in again.",
+  FORBIDDEN: "You do not have permission for this action.",
+  INVALID_CREDENTIALS: "Sign-in details could not be verified.",
+  INVALID_CODE: "The authenticator code is invalid or already used. Wait for a new code.",
+  INVALID_BOOTSTRAP: "The setup token is invalid, expired or already used.",
+  INVALID_INVITATION: "This invitation is invalid, expired or already used.",
+  SIGN_IN_REQUIRED: "This account exists. Sign in to accept the invitation.",
+  LAST_OWNER: "The last owner must remain active. Transfer ownership first.",
+  RATE_LIMITED: "Too many attempts. Please try again later.",
+  CONFLICT: "The data changed. Reload and review before trying again.",
+  UNKNOWN_OUTCOME: "The result is uncertain. Retry the same request to check its result.",
+  PASSWORD_LENGTH: "Use a password between 6 and 256 characters.",
+  COMMON_PASSWORD: "This password is too common. Choose another password.",
+  PASSWORD_COMPROMISED: "This password has appeared in a data breach. Choose another password.",
+  PASSWORD_CHECK_UNAVAILABLE: "The password safety check is unavailable. Please try again later.",
+  REMOTE_READ_ONLY: "This connection only allows reading.",
+  CONNECTION_NOT_FOUND: "This connection is unavailable or disabled.",
+  CONNECTION_UNAVAILABLE: "The connected application could not be reached.",
+  INCOMPATIBLE_CONNECTION: "The application does not support the required API contract.",
+  INVALID_TRANSFER: "This ownership offer is unavailable or expired.",
+};
+function GeneralForm({
+  title,
+  fields,
+  submit,
+  disabled,
+  run,
+}: {
+  title: string;
+  fields: Field[];
+  submit: string;
+  disabled: boolean;
+  run: (input: Record<string, string | boolean>) => Promise<void>;
+}) {
+  const { t } = useLocale();
+  const id = useId();
+  async function onSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const form = event.currentTarget;
+    const data = new FormData(form);
+    const input: Record<string, string | boolean> = {};
+    for (const field of fields)
+      input[field.name] =
+        field.type === "checkbox" ? data.has(field.name) : String(data.get(field.name) ?? "");
+    await run(input);
+    for (const element of form.elements)
+      if (element instanceof HTMLInputElement && element.type === "password") element.value = "";
+  }
+  return (
+    <form className="general-form" onSubmit={onSubmit} aria-label={t(title)}>
+      <h3>{t(title)}</h3>
+      {fields.map((field) => (
+        <div key={field.name}>
+          <label htmlFor={`${id}-${field.name}`}>{t(field.label)}</label>
+          {field.options ? (
+            <select
+              id={`${id}-${field.name}`}
+              name={field.name}
+              defaultValue={field.value}
+              disabled={disabled}
+            >
+              {field.options.map((option) => (
+                <option key={option.value} value={option.value}>
+                  {t(option.label)}
+                </option>
+              ))}
+            </select>
+          ) : (
+            <input
+              id={`${id}-${field.name}`}
+              name={field.name}
+              type={field.type ?? "text"}
+              defaultValue={field.value}
+              defaultChecked={field.checked}
+              required={!field.optional}
+              disabled={disabled}
+              autoComplete={
+                field.name === "password"
+                  ? "current-password"
+                  : field.name === "code"
+                    ? "one-time-code"
+                    : "off"
+              }
+              minLength={field.name === "password" ? 6 : undefined}
+              maxLength={field.name === "password" ? 256 : field.name === "code" ? 6 : undefined}
+              inputMode={field.name === "code" ? "numeric" : undefined}
+              pattern={field.name === "code" ? "[0-9]{6}" : undefined}
+            />
+          )}
+        </div>
+      ))}
+      <button type="submit" disabled={disabled}>
+        {t(submit)}
+      </button>
+    </form>
+  );
+}
+export function GeneralPanel({ basePath }: { basePath: string }) {
+  const { t } = useLocale();
+  const [csrf, setCsrf] = useState("");
+  const [authenticated, setAuthenticated] = useState(false);
+  const [workspaces, setWorkspaces] = useState<Workspace[]>([]);
+  const [workspace, setWorkspace] = useState("");
+  const [snapshot, setSnapshot] = useState<Snapshot | null>(null);
+  const [connections, setConnections] = useState<Connection[]>([]);
+  const [articles, setArticles] = useState<{ connection: string; data: Articles } | null>(null);
+  const [tab, setTab] = useState("Overview");
+  const [phase, setPhase] = useState("login");
+  const [secret, setSecret] = useState("");
+  const [recovery, setRecovery] = useState<string[]>([]);
+  const [invite, setInvite] = useState("");
+  const [inviteLink, setInviteLink] = useState("");
+  const [message, setMessage] = useState("");
+  const [error, setError] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const generation = useRef(0);
+  const operationKeys = useRef(new Map<string, string>());
+  const api = useCallback(
+    async <T,>(route: string, payload?: unknown): Promise<T> => {
+      let response: Response;
+      try {
+        response = await fetch(`${basePath}/api/general/${route}`, {
+          cache: "no-store",
+          ...(payload === undefined
+            ? {}
+            : {
+                method: "POST",
+                headers: { "content-type": "application/json", "x-csrf-token": csrf },
+                body: JSON.stringify(payload),
+              }),
+        });
+      } catch {
+        throw new Error("NETWORK_ERROR");
+      }
+      const data = await response.json();
+      if (!response.ok) throw new Error(typeof data.error === "string" ? data.error : "UNAVAILABLE");
+      return data as T;
+    },
+    [basePath, csrf],
+  );
+  const refreshState = useCallback(async () => {
+    const state = await api<{ csrf: string; authenticated: boolean; workspaces: Workspace[] }>("state");
+    setCsrf(state.csrf);
+    setAuthenticated(state.authenticated);
+    setWorkspaces(state.workspaces);
+    if (!state.authenticated) {
+      setSnapshot(null);
+      setConnections([]);
+      setArticles(null);
+      setWorkspace("");
+    }
+    return state;
+  }, [api]);
+  useEffect(() => {
+    let active = true;
+    const fragment = new URLSearchParams(location.hash.slice(1));
+    const proof = fragment.get("invite");
+    if (proof) {
+      setInvite(proof);
+      history.replaceState(null, "", location.pathname);
+    }
+    fetch(`${basePath}/api/general/state`, { cache: "no-store" })
+      .then(async (response) => {
+        if (!response.ok) throw new Error("UNAVAILABLE");
+        const state = await response.json();
+        if (!active) return;
+        setCsrf(state.csrf);
+        setAuthenticated(state.authenticated);
+        setWorkspaces(state.workspaces);
+        setWorkspace(state.workspaces[0]?.id ?? "");
+      })
+      .catch(() => {
+        if (active) setError("The service is unavailable. Please try again.");
+      })
+      .finally(() => {
+        if (active) setLoading(false);
+      });
+    return () => {
+      active = false;
+    };
+  }, [basePath]);
+  const loadWorkspace = useCallback(
+    async (id: string, current: number) => {
+      const [data, list] = await Promise.all([
+        api<Snapshot>(`workspace?workspace=${id}`),
+        api<Connection[]>(`connections?workspace=${id}`),
+      ]);
+      if (generation.current === current) {
+        setSnapshot(data);
+        setConnections(list);
+      }
+    },
+    [api],
+  );
+  useEffect(() => {
+    const current = ++generation.current;
+    setSnapshot(null);
+    setConnections([]);
+    setArticles(null);
+    setInviteLink("");
+    setError("");
+    if (!workspace || !authenticated) return;
+    setLoading(true);
+    loadWorkspace(workspace, current)
+      .catch((failure: Error) => {
+        if (generation.current === current)
+          setError(errors[failure.message] ?? "The service is unavailable. Please try again.");
+      })
+      .finally(() => {
+        if (generation.current === current) setLoading(false);
+      });
+  }, [workspace, authenticated, loadWorkspace]);
+  async function run(action: () => Promise<void>) {
+    setBusy(true);
+    setMessage("");
+    setError("");
+    try {
+      await action();
+    } catch (failure) {
+      const code = failure instanceof Error ? failure.message : "UNAVAILABLE";
+      setError(
+        errors[code] ??
+          (code === "NETWORK_ERROR"
+            ? "Connection lost. Check your network and retry."
+            : "The request could not be completed. Review the details and try again."),
+      );
+      if (["UNAUTHENTICATED", "FORBIDDEN"].includes(code)) {
+        setSnapshot(null);
+        setConnections([]);
+        setArticles(null);
+        await refreshState().catch(() => {});
+      }
+    } finally {
+      setBusy(false);
+    }
+  }
+  async function mutate(action: string, data: Record<string, unknown>) {
+    await run(async () => {
+      const result = await api<{
+        id?: string;
+        token?: string;
+        status?: string;
+        remoteKeyRevocationRequired?: boolean;
+        version?: number;
+      }>(action, { ...data, workspace });
+      setMessage(
+        result.status === "unavailable"
+          ? "The connected application could not be reached."
+          : result.remoteKeyRevocationRequired
+            ? "Connection disabled. Revoke its API key in the connected application too."
+            : "Changes saved.",
+      );
+      if (result.token) setInviteLink(`${location.origin}${basePath}/workspace#invite=${result.token}`);
+      if (action === "article" && result.version) {
+        setArticles((current) =>
+          current
+            ? {
+                ...current,
+                data: {
+                  ...current.data,
+                  items: current.data.items.map((item) =>
+                    item.id === data.article
+                      ? { ...item, title: String(data.title), version: Number(result.version) }
+                      : item,
+                  ),
+                },
+              }
+            : null,
+        );
+      }
+      if (action === "change-connection" || (action === "application" && data.archived)) setArticles(null);
+      const state = await refreshState();
+      if (action === "workspaces" && result.id) setWorkspace(result.id);
+      else if (state.workspaces.some((item) => item.id === workspace))
+        await loadWorkspace(workspace, generation.current);
+      else setWorkspace(state.workspaces[0]?.id ?? "");
+    });
+  }
+  const code: Field = { name: "code", label: "Current authenticator code", type: "password" };
+  const roleOptions = roles.map((role) => ({ value: role, label: role }));
+  const form = (
+    title: string,
+    fields: Field[],
+    submit: string,
+    action: string,
+    extra: Record<string, unknown> = {},
+  ) => (
+    <GeneralForm
+      title={title}
+      fields={fields}
+      submit={submit}
+      disabled={busy || loading}
+      run={(input) => mutate(action, { ...extra, ...input })}
+    />
+  );
+  return (
+    <div className="general-shell">
+      <header>
+        <div>
+          <strong>OpenHubPanel</strong>
+          <p>{t("Team workspaces")}</p>
+        </div>
+        <LanguageSelector />
+      </header>
+      <main>
+        <h1>{t(authenticated ? "Your workspaces" : "Workspace sign-in")}</h1>
+        {loading && <p role="status">{t("Loading…")}</p>}
+        {error && (
+          <p className="general-error" role="alert">
+            {t(error)}
+          </p>
+        )}
+        {message && <p role="status">{t(message)}</p>}
+        {!!recovery.length && (
+          <section>
+            <h2>{t("Save your recovery codes")}</h2>
+            <p>{t("These codes are shown once. Keep them somewhere private.")}</p>
+            <pre>{recovery.join("\n")}</pre>
+            <button type="button" onClick={() => setRecovery([])}>
+              {t("I saved my codes")}
+            </button>
+          </section>
+        )}
+        {!authenticated ? (
+          <section>
+            {phase === "login" ? (
+              <>
+                <p>{t("An authenticator code is required at every sign-in.")}</p>
+                <GeneralForm
+                  title="Sign in"
+                  fields={[
+                    { name: "email", label: "Email", type: "email" },
+                    { name: "password", label: "Password", type: "password" },
+                    { name: "recovery", label: "Recovery code (optional)", type: "password", optional: true },
+                  ]}
+                  submit="Sign in"
+                  disabled={busy || loading}
+                  run={(input) =>
+                    run(async () => {
+                      const result = await api<{ phase: string; secret?: string }>("login", input);
+                      setPhase(result.phase);
+                      setSecret(result.secret ?? "");
+                    })
+                  }
+                />
+                <GeneralForm
+                  title="First installation"
+                  fields={[
+                    { name: "token", label: "Setup token", type: "password" },
+                    { name: "email", label: "Email", type: "email" },
+                    { name: "password", label: "Password", type: "password" },
+                  ]}
+                  submit="Start setup"
+                  disabled={busy || loading}
+                  run={(input) =>
+                    run(async () => {
+                      const result = await api<{ phase: string; secret: string }>("bootstrap", input);
+                      setPhase(result.phase);
+                      setSecret(result.secret);
+                    })
+                  }
+                />
+                {invite && (
+                  <GeneralForm
+                    title="Join with invitation"
+                    fields={[{ name: "password", label: "Password", type: "password" }]}
+                    submit="Create invited account"
+                    disabled={busy || loading}
+                    run={(input) =>
+                      run(async () => {
+                        const result = await api<{ phase: string; secret: string }>("enroll-invitation", {
+                          ...input,
+                          token: invite,
+                        });
+                        setPhase(result.phase);
+                        setSecret(result.secret);
+                      })
+                    }
+                  />
+                )}
+              </>
+            ) : (
+              <>
+                {secret && (
+                  <>
+                    <h2>{t("Set up your authenticator")}</h2>
+                    <p>{t("Add this key to your authenticator, then enter its current code.")}</p>
+                    <pre>{secret}</pre>
+                  </>
+                )}
+                <GeneralForm
+                  title="Verify authenticator"
+                  fields={[code]}
+                  submit="Verify"
+                  disabled={busy || loading}
+                  run={(input) =>
+                    run(async () => {
+                      const result = await api<{ recoveryCodes?: string[] }>("complete", input);
+                      setSecret("");
+                      setPhase("login");
+                      setRecovery(result.recoveryCodes ?? []);
+                      const state = await refreshState();
+                      setWorkspace(state.workspaces[0]?.id ?? "");
+                    })
+                  }
+                />
+                <button
+                  type="button"
+                  onClick={() => {
+                    setPhase("login");
+                    setSecret("");
+                  }}
+                >
+                  {t("Back to sign-in")}
+                </button>
+              </>
+            )}
+          </section>
+        ) : (
+          <>
+            <div className="general-toolbar">
+              <label htmlFor="general-workspace">{t("Workspace")}</label>
+              <select
+                id="general-workspace"
+                value={workspace}
+                disabled={busy}
+                onChange={(event) => {
+                  generation.current++;
+                  setSnapshot(null);
+                  setConnections([]);
+                  setArticles(null);
+                  setWorkspace(event.target.value);
+                }}
+              >
+                <option value="">{t("Choose a workspace")}</option>
+                {workspaces.map((item) => (
+                  <option key={item.id} value={item.id}>
+                    {item.name}
+                  </option>
+                ))}
+              </select>
+              <button
+                type="button"
+                disabled={busy}
+                onClick={() =>
+                  run(async () => {
+                    await api("logout", {});
+                    await refreshState();
+                  })
+                }
+              >
+                {t("Sign out")}
+              </button>
+            </div>
+            {invite && (
+              <section>
+                <h2>{t("Join with invitation")}</h2>
+                <button
+                  type="button"
+                  disabled={busy}
+                  onClick={() =>
+                    run(async () => {
+                      const result = await api<{ id: string }>("accept-invitation", { token: invite });
+                      setInvite("");
+                      await refreshState();
+                      setWorkspace(result.id);
+                      setMessage("Invitation accepted.");
+                    })
+                  }
+                >
+                  {t("Accept invitation")}
+                </button>
+              </section>
+            )}
+            <nav aria-label={t("Workspace navigation")}>
+              {["Overview", "Applications", "Connections", "Team members", "Activity log", "Security"].map(
+                (item) => (
+                  <button
+                    type="button"
+                    key={item}
+                    disabled={busy}
+                    aria-current={tab === item ? "page" : undefined}
+                    onClick={() => {
+                      setTab(item);
+                      setMessage("");
+                      setError("");
+                      if (workspace) {
+                        const current = ++generation.current;
+                        setSnapshot(null);
+                        setConnections([]);
+                        setArticles(null);
+                        setLoading(true);
+                        void run(async () => {
+                          try {
+                            await loadWorkspace(workspace, current);
+                          } finally {
+                            if (generation.current === current) setLoading(false);
+                          }
+                        });
+                      }
+                    }}
+                  >
+                    {t(item)}
+                  </button>
+                ),
+              )}
+            </nav>
+            {tab === "Overview" && (
+              <section>
+                <h2>{t("Overview")}</h2>
+                <p>{t("Create a workspace, invite your team and connect an application.")}</p>
+                {!workspaces.length && <p>{t("You do not have a workspace yet.")}</p>}
+                {form(
+                  "Create workspace",
+                  [{ name: "name", label: "Workspace name" }],
+                  "Create workspace",
+                  "workspaces",
+                )}
+                {snapshot && (
+                  <p>
+                    {t("Your role")}: {t(snapshot.role)} · {t("Applications")}: {snapshot.applications.length}
+                  </p>
+                )}
+              </section>
+            )}
+            {snapshot && tab === "Applications" && (
+              <section>
+                <h2>{t("Applications")}</h2>
+                {!snapshot.applications.length && (
+                  <p>{t("No applications yet. Add your first application.")}</p>
+                )}
+                {snapshot.applications.map((app) => (
+                  <article key={app.id}>
+                    <h3>{app.name}</h3>
+                    <p>{t(app.archived ? "Archived" : "Active")}</p>
+                    {app.panel_url && (
+                      <a href={app.panel_url} target="_blank" rel="noopener noreferrer">
+                        {t("Open external panel")}
+                      </a>
+                    )}
+                    {hasPermission(snapshot.role, "apps.manage") &&
+                      form(
+                        "Edit application",
+                        [
+                          { name: "name", label: "Application name", value: app.name },
+                          {
+                            name: "panelUrl",
+                            label: "External panel URL (optional)",
+                            type: "url",
+                            value: app.panel_url ?? "",
+                            optional: true,
+                          },
+                          {
+                            name: "archived",
+                            label: "Archived",
+                            type: "checkbox",
+                            optional: true,
+                            checked: app.archived,
+                          },
+                        ],
+                        "Save",
+                        "application",
+                        { id: app.id },
+                      )}
+                  </article>
+                ))}
+                {hasPermission(snapshot.role, "apps.manage") &&
+                  form(
+                    "Add application",
+                    [
+                      { name: "name", label: "Application name" },
+                      {
+                        name: "panelUrl",
+                        label: "External panel URL (optional)",
+                        type: "url",
+                        optional: true,
+                      },
+                    ],
+                    "Add application",
+                    "application",
+                  )}
+              </section>
+            )}
+            {snapshot && tab === "Team members" && (
+              <section>
+                <h2>{t("Team members")}</h2>
+                {!hasPermission(snapshot.role, "members.read") ? (
+                  <p>{t("You do not have permission for this action.")}</p>
+                ) : (
+                  <>
+                    {snapshot.members.map((member) => (
+                      <article key={member.user_id}>
+                        <p>{member.user_id}</p>
+                        <p>
+                          {t(member.role)} · {t(member.active ? "Active" : "Removed")}
+                        </p>
+                        {hasPermission(snapshot.role, "members.manage") &&
+                          canAssignRole(snapshot.role, member.role) &&
+                          member.active &&
+                          form(
+                            "Manage member",
+                            [
+                              {
+                                name: "role",
+                                label: "Role",
+                                options: roleOptions.filter(
+                                  (option) =>
+                                    canAssignRole(snapshot.role, option.value) &&
+                                    (option.value !== "owner" || member.role === "owner"),
+                                ),
+                                value: member.role,
+                              },
+                              {
+                                name: "active",
+                                label: "Keep membership active",
+                                checked: true,
+                                type: "checkbox",
+                                optional: true,
+                              },
+                              code,
+                            ],
+                            "Save member",
+                            "member",
+                            { user: member.user_id },
+                          )}
+                      </article>
+                    ))}
+                    {form(
+                      "Invite member",
+                      [
+                        { name: "email", label: "Email", type: "email" },
+                        {
+                          name: "role",
+                          label: "Role",
+                          options: roleOptions.filter(
+                            (item) => item.value !== "owner" && canAssignRole(snapshot.role, item.value),
+                          ),
+                        },
+                        code,
+                      ],
+                      "Create invitation link",
+                      "invitation",
+                    )}
+                    <p>{t("No email is sent. Copy the invitation link and share it privately.")}</p>
+                    {inviteLink && (
+                      <div>
+                        <label htmlFor="invitation-link">{t("One-use invitation link")}</label>
+                        <input
+                          id="invitation-link"
+                          readOnly
+                          value={inviteLink}
+                          onFocus={(event) => event.target.select()}
+                        />
+                      </div>
+                    )}
+                    <h3>{t("Invitations")}</h3>
+                    {!snapshot.invitations.length && <p>{t("No invitations yet.")}</p>}
+                    {snapshot.invitations.map((invitation) => (
+                      <article key={invitation.id}>
+                        <p>
+                          {invitation.email} · {t(invitation.role)} ·{" "}
+                          {new Date(invitation.expires_at).toLocaleString()}
+                        </p>
+                        <p>
+                          {t(
+                            invitation.accepted ? "Accepted" : invitation.cancelled ? "Cancelled" : "Pending",
+                          )}
+                        </p>
+                        {!invitation.accepted && !invitation.cancelled && (
+                          <>
+                            {form("Cancel invitation", [code], "Cancel invitation", "cancel-invitation", {
+                              id: invitation.id,
+                            })}
+                            {form("Resend invitation", [code], "Replace invitation link", "invitation", {
+                              email: invitation.email,
+                              role: invitation.role,
+                              previous: invitation.id,
+                            })}
+                          </>
+                        )}
+                      </article>
+                    ))}
+                    {snapshot.role === "owner" &&
+                      form(
+                        "Offer ownership",
+                        [
+                          {
+                            name: "target",
+                            label: "Member",
+                            options: snapshot.members
+                              .filter((member) => member.active && member.user_id !== snapshot.userId)
+                              .map((member) => ({ value: member.user_id, label: member.user_id })),
+                          },
+                          code,
+                        ],
+                        "Offer ownership",
+                        "transfer",
+                      )}
+                  </>
+                )}
+                {form("Accept ownership offer", [code], "Accept ownership", "accept-transfer")}
+              </section>
+            )}
+            {snapshot && tab === "Connections" && (
+              <section>
+                <h2>{t("Connections")}</h2>
+                <p>
+                  {t("Panel links open an external website. API connections manage supported data here.")}
+                </p>
+                {!connections.length && <p>{t("No API connections yet.")}</p>}
+                {connections.map((connection) => (
+                  <article key={connection.id}>
+                    <h3>{connection.name}</h3>
+                    <p>{connection.url}</p>
+                    <p>
+                      {t(
+                        connection.disabled
+                          ? "Disabled"
+                          : connection.status === "connected"
+                            ? "Connected"
+                            : connection.status === "unavailable"
+                              ? "Unavailable"
+                              : "Not tested",
+                      )}{" "}
+                      · {t(connection.write_enabled ? "Writes enabled" : "Read only")}
+                    </p>
+                    {connection.checked_at && (
+                      <p>
+                        {t("Last checked")}: {new Date(connection.checked_at).toLocaleString()}
+                      </p>
+                    )}
+                    {!connection.disabled && (
+                      <>
+                        <button
+                          type="button"
+                          disabled={busy}
+                          onClick={() =>
+                            run(async () => {
+                              setArticles(null);
+                              setArticles({
+                                connection: connection.id,
+                                data: await api<Articles>(
+                                  `connections/${connection.id}/articles?workspace=${workspace}`,
+                                ),
+                              });
+                            })
+                          }
+                        >
+                          {t("Read articles")}
+                        </button>
+                        {hasPermission(snapshot.role, "apps.manage") && (
+                          <>
+                            <button
+                              type="button"
+                              disabled={busy}
+                              onClick={() => mutate("test-connection", { id: connection.id })}
+                            >
+                              {t("Test connection")}
+                            </button>
+                            {form(
+                              "Manage connection",
+                              [
+                                {
+                                  name: "action",
+                                  label: "Action",
+                                  options: [
+                                    { value: "disable", label: "Disable connection" },
+                                    { value: "enable-writes", label: "Enable writes" },
+                                    { value: "disable-writes", label: "Disable writes" },
+                                  ],
+                                },
+                                code,
+                              ],
+                              "Apply",
+                              "change-connection",
+                              { id: connection.id, revision: connection.revision },
+                            )}
+                          </>
+                        )}
+                      </>
+                    )}
+                  </article>
+                ))}
+                {articles && (
+                  <section>
+                    <h3>{t("Articles")}</h3>
+                    {!articles.data.items.length && <p>{t("No articles found.")}</p>}
+                    {articles.data.items.map((item) => (
+                      <article key={item.id}>
+                        <h3>{item.title}</h3>
+                        <p>
+                          {item.status} · {t("Version")}: {item.version}
+                        </p>
+                        {articles.data.writeEnabled && hasPermission(snapshot.role, "content.write") && (
+                          <GeneralForm
+                            title="Edit article"
+                            fields={[{ name: "title", label: "Title", value: item.title }, code]}
+                            submit="Save title or check result"
+                            disabled={busy}
+                            run={(input) => {
+                              const payload = {
+                                ...input,
+                                id: articles.connection,
+                                article: item.id,
+                                expectedVersion: item.version,
+                                revision: articles.data.revision,
+                              };
+                              const fingerprint = JSON.stringify({ ...payload, code: undefined });
+                              let idempotencyKey = operationKeys.current.get(fingerprint);
+                              if (!idempotencyKey) {
+                                idempotencyKey = crypto.randomUUID();
+                                operationKeys.current.set(fingerprint, idempotencyKey);
+                              }
+                              return mutate("article", { ...payload, idempotencyKey });
+                            }}
+                          />
+                        )}
+                      </article>
+                    ))}
+                  </section>
+                )}
+                {hasPermission(snapshot.role, "apps.manage") &&
+                  form(
+                    "Add API connection",
+                    [
+                      {
+                        name: "applicationId",
+                        label: "Application",
+                        options: snapshot.applications
+                          .filter((app) => !app.archived)
+                          .map((app) => ({ value: app.id, label: app.name })),
+                      },
+                      { name: "name", label: "Connection name" },
+                      { name: "url", label: "API base URL", type: "url" },
+                      { name: "credential", label: "API key", type: "password" },
+                      {
+                        name: "approveTarget",
+                        label: "I approve sending this API key to this URL",
+                        type: "checkbox",
+                      },
+                      code,
+                    ],
+                    "Add connection",
+                    "connection",
+                  )}
+              </section>
+            )}
+            {snapshot && tab === "Activity log" && (
+              <section>
+                <h2>{t("Activity log")}</h2>
+                {!hasPermission(snapshot.role, "audit.read") ? (
+                  <p>{t("You do not have permission for this action.")}</p>
+                ) : (
+                  <>
+                    {!snapshot.events.length && <p>{t("No activity yet.")}</p>}
+                    {snapshot.events.map((event) => (
+                      <article key={event.id}>
+                        <p>
+                          {event.action} · {t(event.outcome)}
+                        </p>
+                        <p>
+                          {t("Actor")}: {event.actor_id}
+                        </p>
+                        <p>
+                          {t("Target")}: {event.target_id}
+                        </p>
+                        <time dateTime={event.created_at}>{new Date(event.created_at).toLocaleString()}</time>
+                      </article>
+                    ))}
+                  </>
+                )}
+              </section>
+            )}
+            {tab === "Security" && (
+              <section>
+                <h2>{t("Security")}</h2>
+                <p>
+                  {t(
+                    "Authenticator verification is mandatory. Sessions expire after 15 minutes idle or 8 hours total.",
+                  )}
+                </p>
+                <button
+                  type="button"
+                  disabled={busy}
+                  onClick={() =>
+                    run(async () => {
+                      await api("logout", { all: true });
+                      await refreshState();
+                      setMessage("All sessions have been revoked.");
+                    })
+                  }
+                >
+                  {t("Sign out on all devices")}
+                </button>
+              </section>
+            )}
+          </>
+        )}
+      </main>
+    </div>
+  );
+}

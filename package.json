@@ -22,7 +22,7 @@
     "format": "biome check --write .",
     "test": "vitest run",
     "test:db": "tsx scripts/test-db.ts",
-    "test:e2e": "playwright test",
+    "test:e2e": "pnpm build && playwright test && tsx scripts/test-general-browser.ts",
     "check": "pnpm typecheck && pnpm lint && pnpm test && pnpm build",
     "infra:up": "docker compose --env-file .env -f infra/docker/compose.yml up -d --wait",
     "infra:down": "docker compose --env-file .env -f infra/docker/compose.yml down",
@@ -30,7 +30,9 @@
     "scan:secrets": "node scripts/scan-secrets.mjs",
     "licenses:inventory": "node scripts/licenses.mjs",
     "worker:dev": "pnpm --filter @openhubpanel/worker dev",
-    "test:production": "pnpm build && playwright test --config playwright.production.config.ts"
+    "test:production": "pnpm build && playwright test --config playwright.production.config.ts && tsx scripts/test-general-browser.ts",
+    "general:migrate": "tsx scripts/migrate-general.ts",
+    "general:bootstrap": "tsx scripts/general-bootstrap.ts"
   },
   "devDependencies": {
     "@axe-core/playwright": "4.14.0",

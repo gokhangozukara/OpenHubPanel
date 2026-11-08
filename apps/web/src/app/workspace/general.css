@@ -1,0 +1,111 @@
+.general-shell {
+  max-width: 1120px;
+  margin: auto;
+  padding: 24px;
+}
+.general-shell header,
+.general-toolbar,
+.general-shell nav {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.general-shell header {
+  justify-content: space-between;
+  margin-bottom: 24px;
+}
+.general-shell header strong {
+  font-size: 22px;
+}
+.general-shell header p {
+  margin: 6px 0 0;
+}
+.general-shell main {
+  min-width: 0;
+}
+.general-shell section,
+.general-shell article {
+  background: #fff;
+  border: 1px solid #cbd5db;
+  border-radius: 12px;
+  padding: 20px;
+  margin: 16px 0;
+  overflow-wrap: anywhere;
+}
+.general-shell nav {
+  margin-top: 16px;
+}
+.general-shell button {
+  background: #e5edf0;
+  padding: 12px 16px;
+  min-height: 44px;
+  margin: 4px 4px 4px 0;
+  font-weight: 600;
+}
+.general-shell button[aria-current],
+.general-form button {
+  background: #126759;
+  color: white;
+}
+.general-shell input,
+.general-shell select {
+  max-width: 100%;
+  width: 100%;
+  min-height: 44px;
+  border: 1px solid #657780;
+  padding: 10px;
+  background: #fff;
+  color: #172125;
+}
+.general-shell input[type="checkbox"] {
+  width: 24px;
+  min-height: 24px;
+  display: block;
+}
+.general-shell label {
+  display: block;
+  margin-bottom: 8px;
+  font-weight: 600;
+}
+.general-toolbar select {
+  width: min(100%, 420px);
+}
+.general-form {
+  max-width: 620px;
+  margin: 20px 0;
+  padding-top: 12px;
+  border-top: 1px solid #cbd5db;
+}
+.general-form > div {
+  margin-bottom: 16px;
+}
+.general-form h3 {
+  overflow-wrap: anywhere;
+}
+.general-shell pre {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  background: #eaf1f2;
+  color: #172125;
+  padding: 16px;
+}
+.general-shell a {
+  color: #075a9a;
+  text-decoration: underline;
+}
+.general-error {
+  color: #8b1f18;
+  border: 1px solid #b94135;
+  background: #fff0ed;
+  padding: 16px;
+}
+@media (max-width: 600px) {
+  .general-shell {
+    padding: 12px;
+  }
+  .general-shell section,
+  .general-shell article {
+    padding: 14px;
+  }
+}

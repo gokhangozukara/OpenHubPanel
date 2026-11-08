@@ -44,21 +44,9 @@ export function generalWorkspaces(db: Database, key: string) {
   return {
     scoped,
     async list(session: string) {
-      return auth.within(session, async (tx, identity) => {
-        const memberships =
-          await tx`SELECT workspace_id,role FROM workspace_memberships WHERE user_id=${identity.userId} AND active ORDER BY created_at,workspace_id`;
-        const result: { id: string; name: string; role: string }[] = [];
-        for (const membership of memberships) {
-          await tx`SELECT set_config('app.workspace_id',${membership.workspace_id},true)`;
-          const workspaces = await tx`SELECT id,name FROM workspaces WHERE id=${membership.workspace_id}`;
-          if (workspaces[0])
-            result.push({
-              id: String(workspaces[0].id),
-              name: String(workspaces[0].name),
-              role: String(membership.role),
-            });
-        }
-        return result;
+      return auth.within(session, async (tx) => {
+        const rows = await tx`SELECT * FROM list_own_workspaces()`;
+        return rows.map((row) => ({ id: String(row.id), name: String(row.name), role: String(row.role) }));
       });
     },
     async create(session: string, name: string) {

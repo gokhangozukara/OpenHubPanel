@@ -11,7 +11,7 @@ export async function checkGeneralIdentity(
   check: (name: string, action: () => Promise<void>) => Promise<void>,
 ) {
   const key = randomBytes(32).toString("hex");
-  const auth = generalAuth(app, key);
+  const auth = generalAuth(app, key, async () => {});
   const browser = token();
   const bootstrap = await auth.createBootstrap();
   const email = "first@example.test";
@@ -135,7 +135,7 @@ export async function checkGeneralIdentity(
     }
   });
   await check("combined authentication limits survive fresh challenges and processes", async () => {
-    const other = generalAuth(app, key);
+    const other = generalAuth(app, key, async () => {});
     for (let index = 0; index < 10; index++)
       await assert.rejects(auth.login("unknown@example.test", password, token(), "limit-fixture"));
     await assert.rejects(

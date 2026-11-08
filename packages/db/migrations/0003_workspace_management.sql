@@ -14,7 +14,7 @@ GRANT EXECUTE ON FUNCTION workspace_role(uuid) TO openhub_app;
 
 DROP POLICY own_membership ON workspace_memberships;
 CREATE POLICY member_read ON workspace_memberships FOR SELECT USING (
-  (user_id=current_actor_id() AND active) OR
+  (user_id=current_actor_id() AND workspace_id=current_workspace_id() AND active) OR
   (workspace_id=current_workspace_id() AND workspace_role(workspace_id) IN ('owner','admin'))
 );
 CREATE POLICY member_insert ON workspace_memberships FOR INSERT WITH CHECK (
@@ -32,6 +32,15 @@ CREATE POLICY member_update ON workspace_memberships FOR UPDATE USING (
     (workspace_role(workspace_id)='admin' AND role IN ('editor','viewer')))
 );
 GRANT INSERT, UPDATE ON workspace_memberships TO openhub_app;
+
+CREATE FUNCTION list_own_workspaces() RETURNS TABLE(id uuid,name text,role text)
+  LANGUAGE sql STABLE SECURITY DEFINER SET search_path=pg_catalog,public AS $$
+  SELECT w.id,w.name,m.role FROM public.workspace_memberships m JOIN public.workspaces w ON w.id=m.workspace_id
+  WHERE m.user_id=public.current_actor_id() AND m.active ORDER BY m.created_at,w.id
+$$;
+ALTER FUNCTION list_own_workspaces() OWNER TO openhub_policy;
+REVOKE ALL ON FUNCTION list_own_workspaces() FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION list_own_workspaces() TO openhub_app;
 
 CREATE FUNCTION protect_last_owner() RETURNS trigger LANGUAGE plpgsql SECURITY DEFINER
   SET search_path=pg_catalog,public AS $$

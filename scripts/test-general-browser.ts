@@ -1,0 +1,390 @@
+import assert from "node:assert/strict";
+import { execFileSync, spawn } from "node:child_process";
+import { randomBytes } from "node:crypto";
+import { cp, mkdir, mkdtemp, readFile, writeFile } from "node:fs/promises";
+import { request } from "node:http";
+import { createServer } from "node:https";
+import { createRequire } from "node:module";
+import { createServer as tcpServer } from "node:net";
+import path from "node:path";
+import { pathToFileURL } from "node:url";
+import AxeBuilder from "@axe-core/playwright";
+import { chromium, expect } from "@playwright/test";
+import EmbeddedPostgres from "embedded-postgres";
+import { generalAuth } from "../apps/web/src/server/general/auth";
+import { createDatabase } from "../packages/db/src/index";
+
+const root = process.cwd();
+const webRequire = createRequire(path.join(root, "apps/web/package.json"));
+const { generate } = webRequire("otplib") as { generate: (options: { secret: string }) => Promise<string> };
+await mkdir(path.join(root, ".local"), { recursive: true });
+const fixture = await mkdtemp(path.join(root, ".local", "general-browser-"));
+async function freePort() {
+  const server = tcpServer();
+  await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
+  const address = server.address();
+  assert.ok(address && typeof address !== "string");
+  await new Promise<void>((resolve) => server.close(() => resolve()));
+  return address.port;
+}
+const pgPort = await freePort();
+const webPort = await freePort();
+const tlsPort = await freePort();
+const password = randomBytes(32).toString("hex");
+const appPassword = randomBytes(32).toString("hex");
+const encryptionKey = randomBytes(32).toString("hex");
+const engine = new EmbeddedPostgres({
+  databaseDir: path.join(fixture, "postgres"),
+  user: "postgres",
+  password,
+  port: pgPort,
+  persistent: true,
+  authMethod: "scram-sha-256",
+  postgresFlags: ["-h", "127.0.0.1"],
+  initdbFlags: ["--encoding=UTF8", "--locale=C"],
+  onLog: () => {},
+  onError: () => {},
+});
+const origin = `https://127.0.0.1:${tlsPort}`;
+let admin: ReturnType<typeof createDatabase> | undefined;
+let app: ReturnType<typeof createDatabase> | undefined;
+let child: ReturnType<typeof spawn> | undefined;
+let browser: Awaited<ReturnType<typeof chromium.launch>> | undefined;
+let proxy: ReturnType<typeof createServer> | undefined;
+let passed = 0;
+async function check(name: string, run: () => Promise<void>) {
+  await run();
+  passed++;
+  console.log(`PASS ${name}`);
+}
+try {
+  await engine.initialise();
+  await engine.start();
+  await engine.createDatabase("general_browser");
+  admin = createDatabase(`postgresql://postgres:${password}@127.0.0.1:${pgPort}/general_browser`);
+  for (const file of [
+    "0001_workspace_foundation.sql",
+    "0002_general_identity.sql",
+    "0003_workspace_management.sql",
+    "0004_workspace_connections.sql",
+  ])
+    await admin.unsafe(await readFile(path.join(root, "packages/db/migrations", file), "utf8"));
+  await admin.unsafe(`ALTER ROLE openhub_app LOGIN PASSWORD '${appPassword}'`);
+  const url = `postgresql://openhub_app:${appPassword}@127.0.0.1:${pgPort}/general_browser`;
+  app = createDatabase(url);
+  const bootstrap = await generalAuth(app, encryptionKey).createBootstrap();
+  const openssl = process.platform === "win32" ? "C:/Program Files/Git/usr/bin/openssl.exe" : "openssl";
+  execFileSync(
+    openssl,
+    [
+      "req",
+      "-x509",
+      "-newkey",
+      "rsa:2048",
+      "-nodes",
+      "-days",
+      "1",
+      "-keyout",
+      path.join(fixture, "test.key"),
+      "-out",
+      path.join(fixture, "test.crt"),
+      "-subj",
+      "/CN=localhost",
+      "-addext",
+      "subjectAltName=DNS:localhost,IP:127.0.0.1",
+    ],
+    { stdio: "ignore" },
+  );
+  proxy = createServer(
+    {
+      key: await readFile(path.join(fixture, "test.key")),
+      cert: await readFile(path.join(fixture, "test.crt")),
+    },
+    (incoming, outgoing) => {
+      const remote = request(
+        {
+          hostname: "127.0.0.1",
+          port: webPort,
+          path: incoming.url,
+          method: incoming.method,
+          headers: { ...incoming.headers, "x-openhub-client-ip": "127.0.0.1" },
+        },
+        (response) => {
+          outgoing.writeHead(response.statusCode ?? 502, response.headers);
+          response.pipe(outgoing);
+        },
+      );
+      remote.on("error", () => {
+        outgoing.writeHead(502);
+        outgoing.end();
+      });
+      incoming.pipe(remote);
+    },
+  );
+  await new Promise<void>((resolve) => proxy?.listen(tlsPort, "127.0.0.1", resolve));
+  await cp(
+    path.join(root, "apps/web/.next/static"),
+    path.join(root, "apps/web/.next/standalone/apps/web/.next/static"),
+    { recursive: true },
+  );
+  child = spawn(
+    process.execPath,
+    [
+      "--import",
+      pathToFileURL(path.join(root, "scripts/general-test-fetch.mjs")).href,
+      path.join(root, "apps/web/.next/standalone/apps/web/server.js"),
+    ],
+    {
+      cwd: root,
+      env: {
+        ...process.env,
+        NODE_ENV: "production",
+        HOSTNAME: "127.0.0.1",
+        PORT: String(webPort),
+        APP_ORIGIN: origin,
+        GENERAL_ENABLED: "1",
+        GENERAL_DATABASE_URL: url,
+        GENERAL_ENCRYPTION_KEY: encryptionKey,
+        GENERAL_TRUST_PROXY: "1",
+        OPENHUB_OPERATOR: "0",
+        OPENHUB_BASE_PATH: "",
+        NEXT_TELEMETRY_DISABLED: "1",
+      },
+      stdio: ["ignore", "pipe", "pipe"],
+    },
+  );
+  let logs = "";
+  child.stdout?.on("data", (chunk) => {
+    logs += String(chunk);
+  });
+  child.stderr?.on("data", (chunk) => {
+    logs += String(chunk);
+  });
+  for (let attempt = 0; ; attempt++) {
+    try {
+      if ((await fetch(`http://127.0.0.1:${webPort}/api/health`)).ok) break;
+    } catch {}
+    if (attempt >= 60) {
+      await writeFile(path.join(fixture, "server.log"), logs);
+      throw new Error("General browser fixture failed to start; inspect its local server.log.");
+    }
+    await new Promise((resolve) => setTimeout(resolve, 500));
+  }
+  browser = await chromium.launch();
+  const context = await browser.newContext({ ignoreHTTPSErrors: true, locale: "en-US" });
+  const page = await context.newPage();
+  const pageErrors: string[] = [];
+  page.on("pageerror", (error) => pageErrors.push(error.message));
+  const userPassword = randomBytes(24).toString("base64url");
+  let secret = "";
+  await check("general production UI bootstraps once and requires authenticator enrollment", async () => {
+    await page.goto(`${origin}/workspace`);
+    const form = page.getByRole("form", { name: "First installation", exact: true });
+    await form.getByLabel("Setup token", { exact: true }).fill(bootstrap);
+    await form.getByLabel("Email", { exact: true }).fill("browser-owner@example.test");
+    await form.getByLabel("Password", { exact: true }).fill(userPassword);
+    await form.getByRole("button", { name: "Start setup", exact: true }).click();
+    await expect(page.getByRole("heading", { name: "Set up your authenticator", exact: true })).toBeVisible();
+    secret = (await page.locator("pre").textContent()) ?? "";
+    const verify = page.getByRole("form", { name: "Verify authenticator", exact: true });
+    await verify.getByLabel("Current authenticator code", { exact: true }).fill(await generate({ secret }));
+    await verify.getByRole("button", { name: "Verify", exact: true }).click();
+    await expect(page.getByRole("heading", { name: "Your workspaces", exact: true })).toBeVisible();
+    await expect(page.getByText("You do not have a workspace yet.", { exact: true })).toBeVisible();
+    await page.getByRole("button", { name: "I saved my codes", exact: true }).click();
+    const cookies = await context.cookies();
+    const session = cookies.find((cookie) => cookie.name === "__Host-hubgeneral_session");
+    assert.ok(session?.secure && session.httpOnly && session.sameSite === "Strict");
+    assert.equal(pageErrors.length, 0);
+  });
+  let workspaceA = "";
+  let workspaceB = "";
+  await check("real UI creates two workspaces and scoped application forms", async () => {
+    const create = page.getByRole("form", { name: "Create workspace", exact: true });
+    await create.getByLabel("Workspace name", { exact: true }).fill("Browser workspace A");
+    await create.getByRole("button", { name: "Create workspace", exact: true }).click();
+    await expect(page.getByLabel("Workspace", { exact: true })).not.toHaveValue("");
+    workspaceA = await page.getByLabel("Workspace", { exact: true }).inputValue();
+    await page.getByRole("navigation").getByRole("button", { name: "Applications", exact: true }).click();
+    const add = page.getByRole("form", { name: "Add application", exact: true });
+    await add.getByLabel("Application name", { exact: true }).fill("Workspace A application");
+    await add.getByRole("button", { name: "Add application", exact: true }).click();
+    await expect(page.getByRole("heading", { name: "Workspace A application", exact: true })).toBeVisible();
+    await page.getByRole("navigation").getByRole("button", { name: "Overview", exact: true }).click();
+    await create.getByLabel("Workspace name", { exact: true }).fill("Browser workspace B");
+    await create.getByRole("button", { name: "Create workspace", exact: true }).click();
+    await expect(page.getByLabel("Workspace", { exact: true })).not.toHaveValue(workspaceA);
+    workspaceB = await page.getByLabel("Workspace", { exact: true }).inputValue();
+    await page.getByRole("navigation").getByRole("button", { name: "Applications", exact: true }).click();
+    await expect(
+      page.getByText("No applications yet. Add your first application.", { exact: true }),
+    ).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Workspace A application", exact: true })).toHaveCount(0);
+    await page.getByLabel("Workspace", { exact: true }).selectOption(workspaceA);
+    await expect(page.getByRole("heading", { name: "Workspace A application", exact: true })).toBeVisible();
+  });
+  async function freshCode() {
+    assert.ok(admin);
+    for (;;) {
+      const rows =
+        await admin`SELECT last_step FROM hub_identity.factors f JOIN hub_identity.accounts a ON a.id=f.user_id WHERE a.email='browser-owner@example.test'`;
+      if (Math.floor(Date.now() / 30000) > Number(rows[0]?.last_step)) return generate({ secret });
+      await new Promise((resolve) => setTimeout(resolve, 500));
+    }
+  }
+  let invitation = "";
+  await check("owner creates an actual one-use invitation link without claiming email delivery", async () => {
+    await page.getByRole("navigation").getByRole("button", { name: "Team members", exact: true }).click();
+    const form = page.getByRole("form", { name: "Invite member", exact: true });
+    await form.getByLabel("Email", { exact: true }).fill("browser-invited@example.test");
+    await form.getByLabel("Role", { exact: true }).selectOption("viewer");
+    await form.getByLabel("Current authenticator code", { exact: true }).fill(await freshCode());
+    await form.getByRole("button", { name: "Create invitation link", exact: true }).click();
+    await expect(page.getByLabel("One-use invitation link", { exact: true })).toBeVisible();
+    invitation = await page.getByLabel("One-use invitation link", { exact: true }).inputValue();
+    await expect(
+      page.getByText("No email is sent. Copy the invitation link and share it privately.", { exact: true }),
+    ).toBeVisible();
+  });
+  const invitedContext = await browser.newContext({ ignoreHTTPSErrors: true, locale: "en-US" });
+  const invitedPage = await invitedContext.newPage();
+  await check("second user enrolls mandatory TOTP and accepts the invitation exactly once", async () => {
+    await invitedPage.goto(invitation);
+    const form = invitedPage.getByRole("form", { name: "Join with invitation", exact: true });
+    await form.getByLabel("Password", { exact: true }).fill(randomBytes(24).toString("base64url"));
+    await form.getByRole("button", { name: "Create invited account", exact: true }).click();
+    await expect(
+      invitedPage.getByRole("heading", { name: "Set up your authenticator", exact: true }),
+    ).toBeVisible();
+    const invitedSecret = (await invitedPage.locator("pre").textContent()) ?? "";
+    const verify = invitedPage.getByRole("form", { name: "Verify authenticator", exact: true });
+    await verify
+      .getByLabel("Current authenticator code", { exact: true })
+      .fill(await generate({ secret: invitedSecret }));
+    await verify.getByRole("button", { name: "Verify", exact: true }).click();
+    await expect(invitedPage.getByRole("heading", { name: "Your workspaces", exact: true })).toBeVisible();
+    await invitedPage.getByRole("button", { name: "I saved my codes", exact: true }).click();
+    await invitedPage.getByRole("button", { name: "Accept invitation", exact: true }).click();
+    await expect(invitedPage.getByLabel("Workspace", { exact: true })).toHaveValue(workspaceA);
+    await invitedPage
+      .getByRole("navigation")
+      .getByRole("button", { name: "Applications", exact: true })
+      .click();
+    await expect(
+      invitedPage.getByRole("heading", { name: "Workspace A application", exact: true }),
+    ).toBeVisible();
+    await expect(invitedPage.getByRole("form", { name: "Add application", exact: true })).toHaveCount(0);
+    const proof = new URLSearchParams(new URL(invitation).hash.slice(1)).get("invite");
+    const result = await invitedPage.evaluate(async (token) => {
+      const state = await (await fetch("/api/general/state")).json();
+      const response = await fetch("/api/general/accept-invitation", {
+        method: "POST",
+        headers: { "content-type": "application/json", "x-csrf-token": state.csrf },
+        body: JSON.stringify({ token }),
+      });
+      return response.status;
+    }, proof);
+    assert.equal(result, 400);
+  });
+  await check("direct forged workspace and viewer mutation requests cannot change or leak data", async () => {
+    const denied = await invitedPage.evaluate(
+      async ({ workspace, name }) => {
+        const state = await (await fetch("/api/general/state")).json();
+        const read = await fetch(`/api/general/workspace?workspace=${workspace}`);
+        const write = await fetch("/api/general/application", {
+          method: "POST",
+          headers: { "content-type": "application/json", "x-csrf-token": state.csrf },
+          body: JSON.stringify({ workspace, name }),
+        });
+        return { read: read.status, write: write.status, data: await read.text() };
+      },
+      { workspace: workspaceB, name: "Forged application" },
+    );
+    assert.equal(denied.read, 403);
+    assert.equal(denied.write, 403);
+    assert.ok(!denied.data.includes("Browser workspace B"));
+    const noCsrf = await invitedContext.request.post(`${origin}/api/general/application`, {
+      data: { workspace: workspaceA, name: "Forged" },
+      headers: { origin },
+    });
+    assert.equal(noCsrf.status(), 403);
+    assert.ok(admin);
+    assert.equal(
+      (await admin`SELECT id FROM applications WHERE name IN ('Forged','Forged application')`).length,
+      0,
+    );
+  });
+  await check("real workspace screens fit mobile, translate and pass automated WCAG AA checks", async () => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    for (const tab of [
+      "Overview",
+      "Applications",
+      "Connections",
+      "Team members",
+      "Activity log",
+      "Security",
+    ]) {
+      await page.getByRole("navigation").getByRole("button", { name: tab, exact: true }).click();
+      await expect(page.getByRole("heading", { name: tab, exact: true })).toBeVisible();
+      assert.equal(
+        (await new AxeBuilder({ page }).withTags(["wcag2a", "wcag2aa", "wcag21aa"]).analyze()).violations
+          .length,
+        0,
+      );
+      assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth));
+    }
+    await page.getByLabel("Language", { exact: true }).selectOption("tr");
+    await expect(page.getByRole("heading", { name: "Çalışma alanların", exact: true })).toBeVisible();
+    await page.locator(".language-selector select").selectOption("de");
+    await expect(page.getByRole("heading", { name: "Deine Arbeitsbereiche", exact: true })).toBeVisible();
+    assert.equal(
+      (await new AxeBuilder({ page }).withTags(["wcag2a", "wcag2aa", "wcag21aa"]).analyze()).violations
+        .length,
+      0,
+    );
+    await page.locator(".language-selector select").selectOption("en");
+    await page.screenshot({ path: path.join(fixture, "general-mobile.png"), fullPage: true });
+  });
+  await check("membership removal denies old pages and requests on their next access", async () => {
+    assert.ok(admin);
+    const users =
+      await admin`SELECT id FROM hub_identity.accounts WHERE email='browser-invited@example.test'`;
+    const invitedId = String(users[0]?.id);
+    await page.getByRole("navigation").getByRole("button", { name: "Team members", exact: true }).click();
+    const article = page.locator("article").filter({ has: page.getByText(invitedId, { exact: true }) });
+    const form = article.getByRole("form", { name: "Manage member", exact: true });
+    await form.getByLabel("Keep membership active", { exact: true }).uncheck();
+    await form.getByLabel("Current authenticator code", { exact: true }).fill(await freshCode());
+    await form.getByRole("button", { name: "Save member", exact: true }).click();
+    await expect(article.getByText("Removed", { exact: false })).toBeVisible();
+    const response = await invitedContext.request.get(
+      `${origin}/api/general/workspace?workspace=${workspaceA}`,
+    );
+    assert.equal(response.status(), 403);
+    await invitedPage.reload();
+    await expect(
+      invitedPage.getByRole("heading", { name: "Workspace A application", exact: true }),
+    ).toHaveCount(0);
+  });
+  await check("logout from all devices revokes the cookie session immediately", async () => {
+    const saved = await context.cookies();
+    await page.getByRole("navigation").getByRole("button", { name: "Security", exact: true }).click();
+    await page.getByRole("button", { name: "Sign out on all devices", exact: true }).click();
+    await expect(page.getByRole("heading", { name: "Workspace sign-in", exact: true })).toBeVisible();
+    await context.addCookies(saved);
+    const response = await context.request.get(`${origin}/api/general/workspace?workspace=${workspaceA}`);
+    assert.equal(response.status(), 401);
+    assert.equal(pageErrors.length, 0);
+  });
+  console.log(`General production browser: ${passed} scenarios passed.`);
+} finally {
+  await browser?.close();
+  child?.kill();
+  if (child && child.exitCode === null)
+    await new Promise<void>((resolve) => child?.once("exit", () => resolve()));
+  proxy?.closeAllConnections();
+  if (proxy) await new Promise<void>((resolve) => proxy?.close(() => resolve()));
+  await app?.end({ timeout: 5 });
+  await admin?.end({ timeout: 5 });
+  await engine.stop();
+}

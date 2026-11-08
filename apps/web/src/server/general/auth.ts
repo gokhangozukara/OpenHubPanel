@@ -1,4 +1,4 @@
-import { randomUUID } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import { hash, verify as verifyPassword } from "@node-rs/argon2";
 import type { Database, Transaction } from "@openhubpanel/db";
 import { generateSecret, verify } from "otplib";
@@ -12,7 +12,32 @@ const emailAddress = (value: string) => {
   return normalized;
 };
 
-export function generalAuth(db: Database, encryptionKey: string) {
+export async function checkCompromisedPassword(password: string) {
+  const sha = createHash("sha1").update(password).digest("hex").toUpperCase();
+  let response: Response;
+  try {
+    response = await fetch(`https://api.pwnedpasswords.com/range/${sha.slice(0, 5)}`, {
+      headers: { "Add-Padding": "true" },
+      cache: "no-store",
+      redirect: "error",
+      signal: AbortSignal.timeout(5000),
+    });
+    if (!response.ok) throw new Error();
+    const value = await response.text();
+    if (value.length > 262144 || !/^[A-F0-9:0-9\r\n]+$/i.test(value)) throw new Error();
+    if (
+      value.split(/\r?\n/).some((line) => {
+        const [suffix, count] = line.split(":");
+        return suffix === sha.slice(5) && Number(count) > 0;
+      })
+    )
+      throw new Error("PASSWORD_COMPROMISED");
+  } catch (error) {
+    if (error instanceof Error && error.message === "PASSWORD_COMPROMISED") throw error;
+    throw new Error("PASSWORD_CHECK_UNAVAILABLE");
+  }
+}
+export function generalAuth(db: Database, encryptionKey: string, passwordCheck = checkCompromisedPassword) {
   const box = secretBox(encryptionKey);
   async function event(tx: Transaction, action: string, userId: string | null, outcome = "success") {
     await tx`INSERT INTO hub_identity.security_events(id,user_id,action,outcome) VALUES (${randomUUID()},${userId},${action},${outcome})`;
@@ -37,6 +62,7 @@ export function generalAuth(db: Database, encryptionKey: string) {
       throw new Error("PASSWORD_LENGTH");
     if (/^(password|123456|qwerty|abcdef|111111|letmein)$/i.test(password))
       throw new Error("COMMON_PASSWORD");
+    await passwordCheck(password);
     return hash(password, { memoryCost: 19456, timeCost: 2, parallelism: 1 });
   }
   async function challenge(tx: Transaction, userId: string, browser: string, purpose: string) {
@@ -67,6 +93,12 @@ export function generalAuth(db: Database, encryptionKey: string) {
   }
   return {
     within,
+    async guard(ip: string, browser: string) {
+      await limited([`ip:${ip}`, `entry:${browser}`]);
+    },
+    async clearGuard(browser: string) {
+      await db`DELETE FROM hub_identity.rate_limits WHERE key=${digest(`entry:${browser}`)}`;
+    },
     passwordHash,
     emailAddress,
     async enrollInvitation(proof: string, password: string, browser: string) {
@@ -142,7 +174,10 @@ export function generalAuth(db: Database, encryptionKey: string) {
           if (recovery) {
             const used =
               await tx`DELETE FROM hub_identity.recovery_codes WHERE user_id=${id} AND hash=${digest(recovery)} RETURNING user_id`;
-            if (!used.length) return null;
+            if (!used.length) {
+              await event(tx, "recovery.failed", id, "denied");
+              return null;
+            }
             await tx`UPDATE hub_identity.sessions SET revoked=true WHERE user_id=${id}`;
             await tx`UPDATE hub_identity.challenges SET consumed=true WHERE user_id=${id}`;
             await event(tx, "recovery.accepted", id);
@@ -160,7 +195,7 @@ export function generalAuth(db: Database, encryptionKey: string) {
     async complete(raw: string, browser: string, code: string) {
       const result = await db.begin(async (tx) => {
         const rows =
-          await tx`SELECT c.*,a.active FROM hub_identity.challenges c JOIN hub_identity.accounts a ON a.id=c.user_id
+          await tx`SELECT c.*,a.active,a.email FROM hub_identity.challenges c JOIN hub_identity.accounts a ON a.id=c.user_id
           WHERE c.hash=${digest(raw)} AND c.browser_hash=${digest(browser)} AND NOT c.consumed AND c.expires_at>now() AND c.attempts<5 FOR UPDATE OF c,a`;
         const c = rows[0];
         if (!c?.active) return null;
@@ -168,7 +203,10 @@ export function generalAuth(db: Database, encryptionKey: string) {
         const factors = await tx`SELECT * FROM hub_identity.factors WHERE user_id=${c.user_id} FOR UPDATE`;
         const factor = factors[0];
         const encrypted = c.purpose === "login" ? factor?.secret : c.secret;
-        if (!encrypted || !/^\d{6}$/.test(code)) return null;
+        if (!encrypted || !/^\d{6}$/.test(code)) {
+          await event(tx, "factor.failed", String(c.user_id), "denied");
+          return null;
+        }
         const verified = await verify({
           secret: box.open(String(encrypted), `factor:${c.user_id}`),
           token: code,
@@ -197,6 +235,7 @@ export function generalAuth(db: Database, encryptionKey: string) {
           await tx`UPDATE hub_identity.challenges SET consumed=true WHERE hash=${digest(raw)}`;
         }
         await event(tx, "factor.accepted", String(c.user_id));
+        await tx`DELETE FROM hub_identity.rate_limits WHERE key IN (${digest(`account:${c.email}`)},${digest(`device:${browser}`)},${digest(`entry:${browser}`)})`;
         return { session: await session(tx, String(c.user_id)), recoveryCodes };
       });
       if (!result) throw new Error("INVALID_CODE");

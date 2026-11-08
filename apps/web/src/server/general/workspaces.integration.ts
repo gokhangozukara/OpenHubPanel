@@ -14,7 +14,7 @@ export async function checkGeneralWorkspaces(
 ) {
   const key = randomBytes(32).toString("hex");
   const box = secretBox(key);
-  const auth = generalAuth(app, key);
+  const auth = generalAuth(app, key, async () => {});
   const service = generalWorkspaces(app, key);
   const users: {
     id: string;

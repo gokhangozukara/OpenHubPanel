@@ -56,10 +56,13 @@ export function generalConnections(db: Database, key: string, transport: Transpo
       (resource) => resource.id === "articles" && resource.capabilities.includes("update"),
     );
   async function checked(row: Row, workspace: string) {
-    const health = await transport(String(row.url), "/health", secret(workspace, row));
+    const credential = secret(workspace, row);
+    const health = await transport(String(row.url), "/health", credential);
     if (health.status !== "ok" || health.contractVersion !== "1.0")
       throw new Error("INCOMPATIBLE_CONNECTION");
-    return manifest(await transport(String(row.url), "/manifest", secret(workspace, row)));
+    const value = manifest(await transport(String(row.url), "/manifest", credential));
+    if (JSON.stringify(value).includes(credential)) throw new Error("INCOMPATIBLE_CONNECTION");
+    return value;
   }
   async function finish(
     session: string,
@@ -79,7 +82,7 @@ export function generalConnections(db: Database, key: string, transport: Transpo
     async list(session: string, workspace: string) {
       return workspaces.scoped(session, workspace, "apps.read", async (tx) => {
         const rows =
-          await tx`SELECT id,application_id,name,url,manifest,write_enabled,disabled,revision,checked_at,status FROM workspace_connections WHERE workspace_id=${workspace} ORDER BY name,id`;
+          await tx`SELECT id,application_id,name,url,write_enabled,disabled,revision,checked_at,status FROM workspace_connections WHERE workspace_id=${workspace} ORDER BY name,id`;
         return [...rows];
       });
     },
@@ -106,6 +109,7 @@ export function generalConnections(db: Database, key: string, transport: Transpo
         /[\r\n]/.test(input.credential)
       )
         throw new Error("TARGET_APPROVAL_REQUIRED");
+      if (url.includes(input.credential)) throw new Error("INVALID_CONNECTION_URL");
       return workspaces.scoped(session, workspace, "apps.manage", async (tx, identity) => {
         await auth.stepUp(tx, identity, input.code);
         const applications =
@@ -165,10 +169,13 @@ export function generalConnections(db: Database, key: string, transport: Transpo
       return workspaces.scoped(session, workspace, "content.read", async (tx) => {
         const row = await connection(tx, workspace, id);
         manifest(row.manifest);
-        const data = await transport(String(row.url), "/articles", secret(workspace, row));
+        const credential = secret(workspace, row);
+        const data = await transport(String(row.url), "/articles", credential);
         if (!Array.isArray(data.items) || data.items.length > 100) throw new Error("INCOMPATIBLE_CONNECTION");
+        const items = data.items.map(article);
+        if (JSON.stringify(items).includes(credential)) throw new Error("INCOMPATIBLE_CONNECTION");
         return {
-          items: data.items.map(article),
+          items,
           revision: String(row.revision),
           writeEnabled: Boolean(writes(row)),
         };
