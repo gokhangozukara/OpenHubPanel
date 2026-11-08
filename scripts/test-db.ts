@@ -5,6 +5,7 @@ import { createServer } from "node:net";
 import path from "node:path";
 import EmbeddedPostgres from "embedded-postgres";
 import { checkGeneralIdentity } from "../apps/web/src/server/general/auth.integration";
+import { checkIndependentHttp } from "../apps/web/src/server/general/http.integration";
 import { checkGeneralWorkspaces } from "../apps/web/src/server/general/workspaces.integration";
 import { createDatabase, withWorkspace } from "../packages/db/src/index";
 
@@ -140,6 +141,7 @@ try {
   await admin.unsafe(await readFile("packages/db/migrations/0003_workspace_management.sql", "utf8"));
   await admin.unsafe(await readFile("packages/db/migrations/0004_workspace_connections.sql", "utf8"));
   await checkGeneralWorkspaces(admin, app, check);
+  await checkIndependentHttp(admin, app, check);
   console.log(`PostgreSQL integration: ${passed} checks passed.`);
 } finally {
   await appCleanup?.end({ timeout: 5 });
