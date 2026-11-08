@@ -35,13 +35,28 @@ This checklist measures the requested MVP acceptance, not overall product maturi
 | 17* | Atomic audit                         | Pass: audit failure rolls back workspace/application changes and prevents dispatch; web login cannot update/delete audit                                                                         |
 | 18* | Two-workspace leakage rejection      | Pass: real DB app/member/connection/operation/audit isolation, actor in both workspaces, disabled authority and forged browser requests                                                          |
 | 19  | Complete UI state acceptance         | Partial: six mobile screens, keyboard creation, three languages and automated AA pass. Exhaustive conflict/disconnection/unknown-result browser states and full manual accessibility remain open |
-| 20* | All gates/docs/source boundary       | Pending final gate record                                                                                                                                                                        |
+| 20* | All gates/docs/source boundary       | Pass: all eight required commands passed; source scan and full-history Gitleaks are clean                                                                                                        |
 
-`*` denotes a critical criterion. Once criterion 20 is verified, conservative acceptance is **18/20 = 9.0/10**, with all critical criteria passing. No points are awarded to the partially verified criteria 16 and 19.
+`*` denotes a critical criterion. Conservative verified acceptance is **18/20 = 9.0/10**, with all critical criteria passing. No points are awarded to the partially verified criteria 16 and 19.
 
 ## Verification record
 
-Observed during implementation: frozen install, typecheck, lint, 89 unit tests in 15 files, 32 real PostgreSQL checks, 17 preview browser tests and ten new standalone-production browser scenarios passed. Four existing production CSP checks passed at baseline. Final commands and owner regressions are recorded after the final gate run.
+Final local gate run passed on 2026-11-08:
+
+| Command         | Result                                                                                      |
+| --------------- | ------------------------------------------------------------------------------------------- |
+| Frozen install  | Lockfile unchanged; all seven workspaces installed                                          |
+| typecheck       | Passed, including web route generation and tooling                                          |
+| lint            | Passed; 185 files checked                                                                   |
+| test            | 89 tests in 15 files passed                                                                 |
+| test:db         | 32 real PostgreSQL checks passed                                                            |
+| test:e2e        | Production build, 17 preview tests and ten general production browser scenarios passed      |
+| test:production | Production build, four CSP/security tests and the same ten general browser scenarios passed |
+| scan:secrets    | 201 tracked source files passed                                                             |
+
+Additional regressions passed: 17 existing-host owner production scenarios, six independent owner installation scenarios, and two independent Node/Python API contract checks. Owner browser fixtures used a test-process-only deterministic breach-provider response and synthetic delivery callbacks; no real devices or production accounts were touched. Both required browser gates ran the full general suite successfully. General screenshots were also visually inspected at 390px.
+
+Dependency audit reported no known vulnerabilities. Gitleaks 8.30.0 scanned the full local Git history with redaction and found no leaks. All 48 local links in the updated core guides/status pages resolved. GitHub CI is a separate remote check; no CI result is inferred from these local results.
 
 Required commands, from the repository root:
 

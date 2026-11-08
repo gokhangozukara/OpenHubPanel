@@ -32,7 +32,7 @@ Follow the [general setup guide](docs/deployment/general-workspaces.md) for a fr
 ## Where it is headed
 
 - Separate workspaces for clients and teams, with scoped memberships and application access.
-- Secure sign-in with optional authenticator codes on every sign-in when enabled, recovery, and revocable server sessions.
+- General sign-in with required authenticator codes, restricted recovery and revocable server sessions; the owner adapter retains its separate optional-MFA preference.
 - A documented HTTP/JSON contract that developers can implement in their own applications.
 - Shared lists, details, and forms for supported management tasks, with audit records.
 - A responsive interface that works on a phone as well as a desktop.

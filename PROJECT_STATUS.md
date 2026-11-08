@@ -21,10 +21,10 @@ The owner's explicitly requested first live installation now has a separate [sin
 | Database               | Separate application login, FORCE RLS, membership and append-only audit foundation                                                        |
 | Infrastructure         | Pinned images, PostgreSQL/Redis Compose, safe health/protected readiness; minimal ping worker                                             |
 | Interface              | Compact workspace, grouped/collapsible sidebar, scoped keyboard search, application shortcuts/filters, three languages                    |
-| Preview boundary       | Synthetic only; no external writes/invitations; production preview disabled, management API 503                                           |
+| Preview boundary       | Synthetic preview only; production preview disabled; legacy /api/v1 remains 503; general /api/general is separate                         |
 | Real authentication    | Separate general PostgreSQL password/mandatory-TOTP/recovery/sessions; owner character/password/optional-TOTP/IP policy remains separate  |
 | Real management        | General workspace/member/invitation/application/connection/audit services and UI; six native owner configuration sections remain separate |
-| Connectors/outbox      | Compatible host adapter with audited writes and persistent intents; general connector contract is incomplete                              |
+| Connectors/outbox      | Scoped 1.0 article adapter and durable intents; full HTTP write trial/background processing remain open                                   |
 | Release/pilot          | First live owner active; sign-in preferences and native push deployed; old panel removed from runtime                                     |
 
 ## Verification evidence
