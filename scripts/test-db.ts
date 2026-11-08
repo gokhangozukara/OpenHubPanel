@@ -4,6 +4,7 @@ import { readFile } from "node:fs/promises";
 import { createServer } from "node:net";
 import path from "node:path";
 import EmbeddedPostgres from "embedded-postgres";
+import { checkGeneralIdentity } from "../apps/web/src/server/general/auth.integration";
 import { createDatabase, withWorkspace } from "../packages/db/src/index";
 
 async function freePort(): Promise<number> {
@@ -133,6 +134,8 @@ try {
       /WORKSPACE_ACCESS_DENIED/,
     );
   });
+  await admin.unsafe(await readFile("packages/db/migrations/0002_general_identity.sql", "utf8"));
+  await checkGeneralIdentity(admin, app, check);
   console.log(`PostgreSQL integration: ${passed} checks passed.`);
 } finally {
   await appCleanup?.end({ timeout: 5 });
