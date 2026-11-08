@@ -62,7 +62,7 @@ export function generalWorkspaces(db: Database, key: string) {
         const applications =
           await tx`SELECT id,name,connector_id,panel_url,archived FROM applications WHERE workspace_id=${workspace} ORDER BY created_at,id`;
         const members = hasPermission(role, "members.read")
-          ? await tx`SELECT user_id,role,active FROM workspace_memberships WHERE workspace_id=${workspace} ORDER BY created_at,user_id`
+          ? await tx`SELECT * FROM workspace_member_identities(${workspace})`
           : [];
         const invitations = hasPermission(role, "members.manage")
           ? await tx`SELECT id,email,role,expires_at,cancelled,accepted FROM workspace_invitations WHERE workspace_id=${workspace} ORDER BY created_at DESC LIMIT 100`
@@ -70,6 +70,8 @@ export function generalWorkspaces(db: Database, key: string) {
         const events = hasPermission(role, "audit.read")
           ? await tx`SELECT id,actor_id,action,target_id,outcome,changes,created_at FROM audit_events WHERE workspace_id=${workspace} ORDER BY created_at DESC LIMIT 100`
           : [];
+        const offers =
+          await tx`SELECT owner_id,target_id,expires_at FROM ownership_transfers WHERE workspace_id=${workspace} AND NOT accepted AND expires_at>now()`;
         return {
           userId: identity.userId,
           workspaceId: workspace,
@@ -78,6 +80,13 @@ export function generalWorkspaces(db: Database, key: string) {
           members: [...members],
           invitations: [...invitations],
           events: [...events],
+          ownershipOffer: offers[0]
+            ? {
+                ownerId: String(offers[0].owner_id),
+                targetId: String(offers[0].target_id),
+                expiresAt: String(offers[0].expires_at),
+              }
+            : null,
         };
       });
     },

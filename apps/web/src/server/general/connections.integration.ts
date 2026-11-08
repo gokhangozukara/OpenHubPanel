@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
-import type { Database } from "@openhubpanel/db";
+import { type Database, withWorkspace } from "@openhubpanel/db";
 import { generate } from "otplib";
 import { generalConnections } from "./connections";
 import { secretBox, token } from "./crypto";
@@ -21,6 +21,7 @@ export async function checkGeneralConnections(
   let effects = 0;
   let offline = false;
   let timeout = false;
+  let reflectSecret = false;
   const credential = token();
   const operations = new Map<string, { ok: boolean; idempotencyKey: string; version: number }>();
   const transport = async (
@@ -36,12 +37,22 @@ export async function checkGeneralConnections(
     if (route === "/manifest")
       return {
         id: "test-api",
-        name: "Test API",
+        name: reflectSecret ? credential : "Test API",
         contractVersion: "1.0",
         resources: [{ id: "articles", name: "Articles", capabilities: ["list", "read", "update"] }],
       };
     if (route === "/articles")
-      return { items: [{ id: "article", title: "Title", status: "published", version, secret: token() }] };
+      return {
+        items: [
+          {
+            id: "article",
+            title: reflectSecret ? credential : "Title",
+            status: "published",
+            version,
+            secret: token(),
+          },
+        ],
+      };
     if (route.startsWith("/operations/")) {
       const found = operations.get(route.split("/").at(-1) ?? "");
       if (!found) throw new Error("REMOTE_NOT_FOUND");
@@ -170,6 +181,56 @@ export async function checkGeneralConnections(
       assert.equal(effects, 2);
     },
   );
+  await check("connection and operation RLS stay scoped even for an actor in both workspaces", async () => {
+    await withWorkspace(app, { actorId: owner.id, workspaceId: foreignWorkspace }, async (tx) => {
+      assert.equal((await tx`SELECT id FROM workspace_connections WHERE id=${id}`).length, 0);
+      assert.equal((await tx`SELECT id FROM connection_operations WHERE connection_id=${id}`).length, 0);
+      assert.equal(
+        (await tx`SELECT user_id FROM workspace_memberships WHERE workspace_id=${workspace}`).length,
+        0,
+      );
+      assert.equal((await tx`SELECT id FROM audit_events WHERE workspace_id=${workspace}`).length, 0);
+    });
+    await assert.rejects(app.unsafe("SET ROLE openhub_policy"));
+  });
+  await check(
+    "a malicious remote cannot reflect the saved credential in manifests or article responses",
+    async () => {
+      reflectSecret = true;
+      await assert.rejects(service.read(owner.session, workspace, id), /INCOMPATIBLE_CONNECTION/);
+      assert.equal((await service.test(owner.session, workspace, id)).status, "unavailable");
+      const rows = await admin`SELECT manifest FROM workspace_connections WHERE id=${id}`;
+      assert.ok(!JSON.stringify(rows).includes(credential));
+      reflectSecret = false;
+      await service.test(owner.session, workspace, id);
+    },
+  );
+  await check("authority revoked after write intent prevents remote dispatch", async () => {
+    const read = await service.read(owner.session, workspace, id);
+    await admin`UPDATE workspace_memberships SET role='editor' WHERE workspace_id=${workspace} AND user_id=${other.id}`;
+    await admin`UPDATE hub_identity.factors SET last_step=-1 WHERE user_id=${other.id}`;
+    await admin.unsafe(
+      `CREATE FUNCTION revoke_intent_actor() RETURNS trigger LANGUAGE plpgsql SECURITY DEFINER SET search_path=pg_catalog,public AS $$ BEGIN IF NEW.action='connection.write.intent' THEN UPDATE workspace_memberships SET role='viewer' WHERE workspace_id=NEW.workspace_id AND user_id=NEW.actor_id; END IF; RETURN NEW; END $$; CREATE TRIGGER revoke_intent_actor AFTER INSERT ON audit_events FOR EACH ROW EXECUTE FUNCTION revoke_intent_actor()`,
+    );
+    try {
+      await assert.rejects(
+        service.update(other.session, workspace, id, "article", {
+          title: "Revoked",
+          expectedVersion: 3,
+          idempotencyKey: randomUUID(),
+          revision: read.revision,
+          code: await generate({ secret: other.secret }),
+        }),
+        /FORBIDDEN/,
+      );
+      assert.equal(effects, 2);
+    } finally {
+      await admin.unsafe(
+        "DROP TRIGGER revoke_intent_actor ON audit_events; DROP FUNCTION revoke_intent_actor()",
+      );
+      await admin`UPDATE workspace_memberships SET role='admin' WHERE workspace_id=${workspace} AND user_id=${other.id}`;
+    }
+  });
   await check(
     "audit failure prevents dispatch; disabled connection denies new reads and writes",
     async () => {

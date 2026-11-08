@@ -6,7 +6,7 @@ import { LanguageSelector, useLocale } from "@/i18n/provider";
 
 type Workspace = { id: string; name: string; role: string };
 type App = { id: string; name: string; panel_url: string | null; archived: boolean };
-type Member = { user_id: string; role: string; active: boolean };
+type Member = { user_id: string; display_name: string; role: string; active: boolean };
 type Invitation = {
   id: string;
   email: string;
@@ -31,6 +31,7 @@ type Snapshot = {
   members: Member[];
   invitations: Invitation[];
   events: Event[];
+  ownershipOffer: { ownerId: string; targetId: string; expiresAt: string } | null;
 };
 type Connection = {
   id: string;
@@ -58,6 +59,29 @@ type Field = {
   options?: { value: string; label: string }[];
 };
 const roles = ["owner", "admin", "editor", "viewer"];
+const auditLabels: Record<string, string> = {
+  "workspace.created": "Workspace created",
+  "member.role_changed": "Member role changed",
+  "member.removed": "Member removed",
+  "invitation.created": "Invitation created",
+  "invitation.resent": "Invitation replaced",
+  "invitation.cancelled": "Invitation cancelled",
+  "invitation.accepted": "Invitation accepted",
+  "ownership.offered": "Ownership offered",
+  "ownership.accepted": "Ownership accepted",
+  "application.created": "Application created",
+  "application.updated": "Application updated",
+  "connection.created": "Connection created",
+  "connection.tested": "Connection tested",
+  "connection.disable": "Connection disabled",
+  "connection.enable-writes": "Connection writes enabled",
+  "connection.disable-writes": "Connection writes disabled",
+  "connection.write.intent": "Article change requested",
+  "connection.write.dispatched": "Article change sent",
+  "connection.write.completed": "Article change completed",
+  "connection.write.conflict": "Article change conflicted",
+  "connection.write.unknown": "Article change result uncertain",
+};
 const errors: Record<string, string> = {
   UNAUTHENTICATED: "Your session ended. Please sign in again.",
   FORBIDDEN: "You do not have permission for this action.",
@@ -652,6 +676,7 @@ export function GeneralPanel({ basePath }: { basePath: string }) {
                   <>
                     {snapshot.members.map((member) => (
                       <article key={member.user_id}>
+                        <h3>{member.display_name}</h3>
                         <p>{member.user_id}</p>
                         <p>
                           {t(member.role)} · {t(member.active ? "Active" : "Removed")}
@@ -725,7 +750,13 @@ export function GeneralPanel({ basePath }: { basePath: string }) {
                         </p>
                         <p>
                           {t(
-                            invitation.accepted ? "Accepted" : invitation.cancelled ? "Cancelled" : "Pending",
+                            invitation.accepted
+                              ? "Accepted"
+                              : invitation.cancelled
+                                ? "Cancelled"
+                                : Date.parse(invitation.expires_at) <= Date.now()
+                                  ? "Expired"
+                                  : "Pending",
                           )}
                         </p>
                         {!invitation.accepted && !invitation.cancelled && (
@@ -751,7 +782,7 @@ export function GeneralPanel({ basePath }: { basePath: string }) {
                             label: "Member",
                             options: snapshot.members
                               .filter((member) => member.active && member.user_id !== snapshot.userId)
-                              .map((member) => ({ value: member.user_id, label: member.user_id })),
+                              .map((member) => ({ value: member.user_id, label: member.display_name })),
                           },
                           code,
                         ],
@@ -760,7 +791,8 @@ export function GeneralPanel({ basePath }: { basePath: string }) {
                       )}
                   </>
                 )}
-                {form("Accept ownership offer", [code], "Accept ownership", "accept-transfer")}
+                {snapshot.ownershipOffer?.targetId === snapshot.userId &&
+                  form("Accept ownership offer", [code], "Accept ownership", "accept-transfer")}
               </section>
             )}
             {snapshot && tab === "Connections" && (
@@ -918,7 +950,7 @@ export function GeneralPanel({ basePath }: { basePath: string }) {
                     {snapshot.events.map((event) => (
                       <article key={event.id}>
                         <p>
-                          {event.action} · {t(event.outcome)}
+                          {t(auditLabels[event.action] ?? "Workspace activity")} · {t(event.outcome)}
                         </p>
                         <p>
                           {t("Actor")}: {event.actor_id}

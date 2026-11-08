@@ -11,7 +11,6 @@ import { pathToFileURL } from "node:url";
 import AxeBuilder from "@axe-core/playwright";
 import { chromium, expect } from "@playwright/test";
 import EmbeddedPostgres from "embedded-postgres";
-import { generalAuth } from "../apps/web/src/server/general/auth";
 import { createDatabase } from "../packages/db/src/index";
 
 const root = process.cwd();
@@ -62,17 +61,30 @@ try {
   await engine.start();
   await engine.createDatabase("general_browser");
   admin = createDatabase(`postgresql://postgres:${password}@127.0.0.1:${pgPort}/general_browser`);
-  for (const file of [
-    "0001_workspace_foundation.sql",
-    "0002_general_identity.sql",
-    "0003_workspace_management.sql",
-    "0004_workspace_connections.sql",
-  ])
-    await admin.unsafe(await readFile(path.join(root, "packages/db/migrations", file), "utf8"));
+  const migrationEnv = {
+    ...process.env,
+    GENERAL_MIGRATION_DATABASE_URL: `postgresql://postgres:${password}@127.0.0.1:${pgPort}/general_browser`,
+  };
+  for (let attempt = 0; attempt < 2; attempt++)
+    execFileSync(process.execPath, ["--import", "tsx", "scripts/migrate-general.ts"], {
+      cwd: root,
+      env: migrationEnv,
+      stdio: "pipe",
+    });
+  assert.equal(Number((await admin`SELECT count(*) FROM hub_migrations`)[0]?.count), 4);
   await admin.unsafe(`ALTER ROLE openhub_app LOGIN PASSWORD '${appPassword}'`);
   const url = `postgresql://openhub_app:${appPassword}@127.0.0.1:${pgPort}/general_browser`;
   app = createDatabase(url);
-  const bootstrap = await generalAuth(app, encryptionKey).createBootstrap();
+  const bootstrap =
+    execFileSync(process.execPath, ["--import", "tsx", "scripts/general-bootstrap.ts"], {
+      cwd: root,
+      env: { ...process.env, GENERAL_DATABASE_URL: url, GENERAL_ENCRYPTION_KEY: encryptionKey },
+      encoding: "utf8",
+    })
+      .trim()
+      .split(/\r?\n/)
+      .at(-1) ?? "";
+  assert.match(bootstrap, /^[A-Za-z0-9_-]{43}$/);
   const openssl = process.platform === "win32" ? "C:/Program Files/Git/usr/bin/openssl.exe" : "openssl";
   execFileSync(
     openssl,
@@ -175,7 +187,7 @@ try {
   const page = await context.newPage();
   const pageErrors: string[] = [];
   page.on("pageerror", (error) => pageErrors.push(error.message));
-  const userPassword = randomBytes(24).toString("base64url");
+  const userPassword = `T${randomBytes(3).toString("hex").slice(0, 5)}`;
   let secret = "";
   await check("general production UI bootstraps once and requires authenticator enrollment", async () => {
     await page.goto(`${origin}/workspace`);
@@ -208,7 +220,7 @@ try {
     await page.getByRole("navigation").getByRole("button", { name: "Applications", exact: true }).click();
     const add = page.getByRole("form", { name: "Add application", exact: true });
     await add.getByLabel("Application name", { exact: true }).fill("Workspace A application");
-    await add.getByRole("button", { name: "Add application", exact: true }).click();
+    await add.getByLabel("Application name", { exact: true }).press("Enter");
     await expect(page.getByRole("heading", { name: "Workspace A application", exact: true })).toBeVisible();
     await page.getByRole("navigation").getByRole("button", { name: "Overview", exact: true }).click();
     await create.getByLabel("Workspace name", { exact: true }).fill("Browser workspace B");
@@ -233,6 +245,55 @@ try {
     }
   }
   let invitation = "";
+  await check(
+    "real connection form encrypts its key, reports a failed test honestly and disables access",
+    async () => {
+      await page.getByRole("navigation").getByRole("button", { name: "Connections", exact: true }).click();
+      const form = page.getByRole("form", { name: "Add API connection", exact: true });
+      const credential = randomBytes(32).toString("base64url");
+      await form.getByLabel("Connection name", { exact: true }).fill("Browser API fixture");
+      await form.getByLabel("API base URL", { exact: true }).fill("https://api.invalid");
+      await form.getByLabel("API key", { exact: true }).fill(credential);
+      await form.getByLabel("I approve sending this API key to this URL", { exact: true }).check();
+      await form.getByLabel("Current authenticator code", { exact: true }).fill(await freshCode());
+      await form.getByRole("button", { name: "Add connection", exact: true }).click();
+      const card = page
+        .locator("article")
+        .filter({ has: page.getByRole("heading", { name: "Browser API fixture", exact: true }) });
+      await expect(card).toBeVisible();
+      assert.ok(admin);
+      const rows =
+        await admin`SELECT id,secret,write_enabled FROM workspace_connections WHERE name='Browser API fixture'`;
+      assert.notEqual(rows[0]?.secret, credential);
+      assert.equal(rows[0]?.write_enabled, false);
+      assert.ok(
+        !(
+          await (
+            await context.request.get(`${origin}/api/general/connections?workspace=${workspaceA}`)
+          ).text()
+        ).includes(credential),
+      );
+      await card.getByRole("button", { name: "Test connection", exact: true }).click();
+      await expect(card.getByText(/Unavailable/)).toBeVisible();
+      const manage = card.getByRole("form", { name: "Manage connection", exact: true });
+      await manage.getByLabel("Action", { exact: true }).selectOption("disable");
+      await manage.getByLabel("Current authenticator code", { exact: true }).fill(await freshCode());
+      await manage.getByRole("button", { name: "Apply", exact: true }).click();
+      await expect(card.getByText(/Disabled/)).toBeVisible();
+      assert.equal(
+        (await admin`SELECT secret FROM workspace_connections WHERE id=${rows[0]?.id}`)[0]?.secret,
+        "",
+      );
+      assert.equal(
+        (
+          await context.request.get(
+            `${origin}/api/general/connections/${rows[0]?.id}/articles?workspace=${workspaceA}`,
+          )
+        ).status(),
+        400,
+      );
+    },
+  );
   await check("owner creates an actual one-use invitation link without claiming email delivery", async () => {
     await page.getByRole("navigation").getByRole("button", { name: "Team members", exact: true }).click();
     const form = page.getByRole("form", { name: "Invite member", exact: true });
@@ -375,6 +436,20 @@ try {
     const response = await context.request.get(`${origin}/api/general/workspace?workspace=${workspaceA}`);
     assert.equal(response.status(), 401);
     assert.equal(pageErrors.length, 0);
+  });
+  await check("six-character password login still requires a fresh authenticator code", async () => {
+    const login = page.getByRole("form", { name: "Sign in", exact: true });
+    await login.getByLabel("Email", { exact: true }).fill("browser-owner@example.test");
+    await login.getByLabel("Password", { exact: true }).fill(userPassword);
+    await login.getByRole("button", { name: "Sign in", exact: true }).click();
+    await expect(page.getByRole("form", { name: "Verify authenticator", exact: true })).toBeVisible();
+    assert.equal(
+      (await (await context.request.get(`${origin}/api/general/state`)).json()).authenticated,
+      false,
+    );
+    await page.getByLabel("Current authenticator code", { exact: true }).fill(await freshCode());
+    await page.getByRole("button", { name: "Verify", exact: true }).click();
+    await expect(page.getByRole("heading", { name: "Your workspaces", exact: true })).toBeVisible();
   });
   console.log(`General production browser: ${passed} scenarios passed.`);
 } finally {

@@ -1,12 +1,17 @@
 -- A non-login policy helper can inspect memberships without recursive RLS.
 -- The web login never owns tables, inherits this role, or receives BYPASSRLS.
-CREATE ROLE openhub_policy NOLOGIN NOSUPERUSER BYPASSRLS;
+DO $$ BEGIN
+  IF NOT EXISTS(SELECT 1 FROM pg_roles WHERE rolname='openhub_policy') THEN
+    CREATE ROLE openhub_policy NOLOGIN NOSUPERUSER BYPASSRLS;
+  END IF;
+END $$;
 GRANT USAGE ON SCHEMA public TO openhub_policy;
 GRANT SELECT ON workspace_memberships, workspaces TO openhub_policy;
 CREATE FUNCTION workspace_role(scope uuid) RETURNS text LANGUAGE sql STABLE SECURITY DEFINER
   SET search_path=pg_catalog,public AS $$
   SELECT role FROM public.workspace_memberships
   WHERE workspace_id=scope AND user_id=public.current_actor_id() AND active
+    AND EXISTS(SELECT 1 FROM hub_identity.accounts a WHERE a.id=public.current_actor_id() AND a.active)
 $$;
 ALTER FUNCTION workspace_role(uuid) OWNER TO openhub_policy;
 REVOKE ALL ON FUNCTION workspace_role(uuid) FROM PUBLIC;
@@ -14,7 +19,7 @@ GRANT EXECUTE ON FUNCTION workspace_role(uuid) TO openhub_app;
 
 DROP POLICY own_membership ON workspace_memberships;
 CREATE POLICY member_read ON workspace_memberships FOR SELECT USING (
-  (user_id=current_actor_id() AND workspace_id=current_workspace_id() AND active) OR
+  (user_id=current_actor_id() AND workspace_id=current_workspace_id() AND active AND workspace_role(workspace_id) IS NOT NULL) OR
   (workspace_id=current_workspace_id() AND workspace_role(workspace_id) IN ('owner','admin'))
 );
 CREATE POLICY member_insert ON workspace_memberships FOR INSERT WITH CHECK (
@@ -36,11 +41,24 @@ GRANT INSERT, UPDATE ON workspace_memberships TO openhub_app;
 CREATE FUNCTION list_own_workspaces() RETURNS TABLE(id uuid,name text,role text)
   LANGUAGE sql STABLE SECURITY DEFINER SET search_path=pg_catalog,public AS $$
   SELECT w.id,w.name,m.role FROM public.workspace_memberships m JOIN public.workspaces w ON w.id=m.workspace_id
-  WHERE m.user_id=public.current_actor_id() AND m.active ORDER BY m.created_at,w.id
+  WHERE m.user_id=public.current_actor_id() AND m.active
+    AND EXISTS(SELECT 1 FROM hub_identity.accounts a WHERE a.id=m.user_id AND a.active) ORDER BY m.created_at,w.id
 $$;
 ALTER FUNCTION list_own_workspaces() OWNER TO openhub_policy;
 REVOKE ALL ON FUNCTION list_own_workspaces() FROM PUBLIC;
 GRANT EXECUTE ON FUNCTION list_own_workspaces() TO openhub_app;
+
+GRANT SELECT ON users TO openhub_policy;
+CREATE FUNCTION workspace_member_identities(scope uuid) RETURNS TABLE(user_id uuid,display_name text,role text,active boolean)
+  LANGUAGE sql STABLE SECURITY DEFINER SET search_path=pg_catalog,public AS $$
+  SELECT m.user_id,u.display_name,m.role,m.active FROM public.workspace_memberships m JOIN public.users u ON u.id=m.user_id
+  WHERE m.workspace_id=scope AND scope=public.current_workspace_id()
+    AND public.workspace_role(scope) IN ('owner','admin') ORDER BY m.created_at,m.user_id
+$$;
+GRANT EXECUTE ON FUNCTION workspace_role(uuid) TO openhub_policy;
+ALTER FUNCTION workspace_member_identities(uuid) OWNER TO openhub_policy;
+REVOKE ALL ON FUNCTION workspace_member_identities(uuid) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION workspace_member_identities(uuid) TO openhub_app;
 
 CREATE FUNCTION protect_last_owner() RETURNS trigger LANGUAGE plpgsql SECURITY DEFINER
   SET search_path=pg_catalog,public AS $$
@@ -122,7 +140,8 @@ CREATE FUNCTION invitation_lookup(proof text) RETURNS TABLE(workspace_id uuid,id
   SELECT i.workspace_id,i.id,i.email,i.role,i.inviter_id FROM public.workspace_invitations i
   WHERE i.token_hash=proof AND NOT i.cancelled AND NOT i.accepted AND i.expires_at>now()
   AND EXISTS(SELECT 1 FROM public.workspace_memberships m WHERE m.workspace_id=i.workspace_id
-    AND m.user_id=i.inviter_id AND m.active AND (m.role='owner' OR (m.role='admin' AND i.role IN ('editor','viewer'))))
+    AND m.user_id=i.inviter_id AND m.active AND (m.role='owner' OR (m.role='admin' AND i.role IN ('editor','viewer')))
+    AND EXISTS(SELECT 1 FROM hub_identity.accounts a WHERE a.id=m.user_id AND a.active))
 $$;
 ALTER FUNCTION invitation_lookup(text) OWNER TO openhub_policy;
 REVOKE ALL ON FUNCTION invitation_lookup(text) FROM PUBLIC;
@@ -143,7 +162,8 @@ BEGIN
   PERFORM id FROM public.workspaces WHERE id=invitation.workspace_id FOR UPDATE;
   IF NOT EXISTS(SELECT 1 FROM public.workspace_memberships m WHERE m.workspace_id=invitation.workspace_id
     AND m.user_id=invitation.inviter_id AND m.active AND
-    (m.role='owner' OR (m.role='admin' AND invitation.role IN ('editor','viewer'))))
+    (m.role='owner' OR (m.role='admin' AND invitation.role IN ('editor','viewer')))
+    AND EXISTS(SELECT 1 FROM hub_identity.accounts a WHERE a.id=m.user_id AND a.active))
     THEN RAISE EXCEPTION 'INVALID_INVITATION'; END IF;
   IF EXISTS(SELECT 1 FROM public.workspace_memberships WHERE workspace_id=invitation.workspace_id AND user_id=actor AND active)
     THEN RAISE EXCEPTION 'ALREADY_MEMBER'; END IF;
@@ -216,6 +236,7 @@ BEGIN
   SELECT * INTO transfer FROM public.ownership_transfers WHERE workspace_id=scope FOR UPDATE;
   IF NOT FOUND OR transfer.accepted OR transfer.expires_at<=now() OR transfer.target_id<>actor
     OR NOT EXISTS(SELECT 1 FROM public.workspace_memberships WHERE workspace_id=scope AND user_id=transfer.owner_id AND active AND role='owner')
+    OR NOT EXISTS(SELECT 1 FROM hub_identity.accounts WHERE id=transfer.owner_id AND active)
     OR NOT EXISTS(SELECT 1 FROM hub_identity.factors WHERE user_id=actor)
     THEN RAISE EXCEPTION 'INVALID_TRANSFER'; END IF;
   UPDATE public.workspace_memberships SET role='owner' WHERE workspace_id=scope AND user_id=actor AND active;

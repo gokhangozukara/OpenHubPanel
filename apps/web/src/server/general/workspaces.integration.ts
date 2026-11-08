@@ -187,6 +187,16 @@ export async function checkGeneralWorkspaces(
   });
   await check("ownership requires owner offer and recipient acceptance with current TOTP", async () => {
     await service.transfer(owner.session, a.id, viewer.id, await code(owner));
+    assert.equal((await service.snapshot(viewer.session, a.id)).ownershipOffer?.targetId, viewer.id);
+    await admin`UPDATE hub_identity.accounts SET active=false WHERE id=${owner.id}`;
+    try {
+      await assert.rejects(
+        service.acceptTransfer(viewer.session, a.id, await code(viewer)),
+        /INVALID_TRANSFER/,
+      );
+    } finally {
+      await admin`UPDATE hub_identity.accounts SET active=true WHERE id=${owner.id}`;
+    }
     assert.equal((await service.snapshot(owner.session, a.id)).role, "owner");
     await assert.rejects(
       service.acceptTransfer(administrator.session, a.id, await code(administrator)),
@@ -225,6 +235,32 @@ export async function checkGeneralWorkspaces(
       assert.equal(role?.rolsuper, false);
       assert.equal(role?.rolbypassrls, false);
       assert.equal((await app`SELECT * FROM applications`).length, 0);
+    },
+  );
+  await check(
+    "disabled account authority cannot authorize invitation acceptance or scoped RLS reads",
+    async () => {
+      const invitation = await service.invite(
+        viewer.session,
+        a.id,
+        "disabled-authority@example.test",
+        "viewer",
+        await code(viewer),
+      );
+      await admin`UPDATE hub_identity.accounts SET active=false WHERE id=${viewer.id}`;
+      try {
+        await assert.rejects(service.snapshot(viewer.session, a.id), /UNAUTHENTICATED/);
+        assert.equal((await app`SELECT * FROM invitation_lookup(${digest(invitation.token)})`).length, 0);
+        await assert.rejects(service.accept(owner.session, invitation.token), /INVALID_INVITATION/);
+        await app.begin(async (tx) => {
+          await tx`SELECT set_config('app.actor_id',${viewer.id},true),set_config('app.workspace_id',${a.id},true)`;
+          assert.equal((await tx`SELECT * FROM applications`).length, 0);
+          assert.equal((await tx`SELECT * FROM list_own_workspaces()`).length, 0);
+          assert.equal((await tx`SELECT * FROM workspace_member_identities(${a.id})`).length, 0);
+        });
+      } finally {
+        await admin`UPDATE hub_identity.accounts SET active=true WHERE id=${viewer.id}`;
+      }
     },
   );
   await checkGeneralConnections(

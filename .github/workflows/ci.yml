@@ -1,7 +1,7 @@
 name: CI
 on:
   push:
-    branches: [main]
+    branches: [main, feat/general-workspace-mvp]
   pull_request:
 permissions:
   contents: read
@@ -28,6 +28,9 @@ jobs:
       - run: pnpm lint
       - run: pnpm test
       - run: pnpm test:db
+      - run: pnpm exec playwright install --with-deps chromium
+      - run: pnpm test:e2e
+      - run: pnpm test:production
       - run: pnpm audit --audit-level=moderate
       - run: pnpm scan:secrets
       - name: Scan full Git history with Gitleaks
