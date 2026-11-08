@@ -585,5 +585,22 @@
   "Article change completed": "Yazı değişikliği tamamlandı",
   "Article change conflicted": "Yazı değişikliğinde çakışma",
   "Article change result uncertain": "Yazı değişikliği sonucu belirsiz",
-  "Workspace activity": "Çalışma alanı işlemi"
+  "Workspace activity": "Çalışma alanı işlemi",
+  "The request timed out. Reload to check the latest data.": "İstek zaman aşımına uğradı. Güncel verileri görmek için yeniden yükleyin.",
+  "The details are invalid. Check the highlighted fields and try again.": "Bilgiler geçersiz. İşaretli alanları kontrol edip tekrar deneyin.",
+  "This item is unavailable. Reload the workspace.": "Bu öğe kullanılamıyor. Çalışma alanını yeniden yükleyin.",
+  "This API address is blocked by the connection safety policy.": "Bu API adresi bağlantı güvenlik kuralıyla engellendi.",
+  "The connected application rejected this API key.": "Bağlı uygulama bu API anahtarını reddetti.",
+  "Enter a valid public HTTPS API address.": "Geçerli bir genel HTTPS API adresi girin.",
+  "Approve the API address and enter a valid API key.": "API adresini onaylayıp geçerli bir API anahtarı girin.",
+  "This account already belongs to this workspace.": "Bu hesap zaten bu çalışma alanının üyesi.",
+  "Use an ownership offer to appoint a new owner.": "Yeni sahip atamak için sahiplik teklifi kullanın.",
+  "This field is required.": "Bu alan zorunludur.",
+  "Use at most {count} characters.": "En fazla {count} karakter kullanın.",
+  "Enter the six-digit authenticator code.": "Altı haneli doğrulama kodunu girin.",
+  "Enter a valid email address.": "Geçerli bir e-posta adresi girin.",
+  "Enter a valid HTTPS URL.": "Geçerli bir HTTPS adresi girin.",
+  "Check the highlighted fields.": "İşaretli alanları kontrol edin.",
+  "Check result": "Sonucu kontrol et",
+  "No members yet.": "Henüz üye yok."
 }

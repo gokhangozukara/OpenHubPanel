@@ -585,5 +585,22 @@
   "Article change completed": "Article change completed",
   "Article change conflicted": "Article change conflicted",
   "Article change result uncertain": "Article change result uncertain",
-  "Workspace activity": "Workspace activity"
+  "Workspace activity": "Workspace activity",
+  "The request timed out. Reload to check the latest data.": "The request timed out. Reload to check the latest data.",
+  "The details are invalid. Check the highlighted fields and try again.": "The details are invalid. Check the highlighted fields and try again.",
+  "This item is unavailable. Reload the workspace.": "This item is unavailable. Reload the workspace.",
+  "This API address is blocked by the connection safety policy.": "This API address is blocked by the connection safety policy.",
+  "The connected application rejected this API key.": "The connected application rejected this API key.",
+  "Enter a valid public HTTPS API address.": "Enter a valid public HTTPS API address.",
+  "Approve the API address and enter a valid API key.": "Approve the API address and enter a valid API key.",
+  "This account already belongs to this workspace.": "This account already belongs to this workspace.",
+  "Use an ownership offer to appoint a new owner.": "Use an ownership offer to appoint a new owner.",
+  "This field is required.": "This field is required.",
+  "Use at most {count} characters.": "Use at most {count} characters.",
+  "Enter the six-digit authenticator code.": "Enter the six-digit authenticator code.",
+  "Enter a valid email address.": "Enter a valid email address.",
+  "Enter a valid HTTPS URL.": "Enter a valid HTTPS URL.",
+  "Check the highlighted fields.": "Check the highlighted fields.",
+  "Check result": "Check result",
+  "No members yet.": "No members yet."
 }

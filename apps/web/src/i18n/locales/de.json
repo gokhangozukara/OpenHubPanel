@@ -585,5 +585,22 @@
   "Article change completed": "Artikeländerung abgeschlossen",
   "Article change conflicted": "Konflikt bei Artikeländerung",
   "Article change result uncertain": "Ergebnis der Artikeländerung ungewiss",
-  "Workspace activity": "Arbeitsbereich-Aktivität"
+  "Workspace activity": "Arbeitsbereich-Aktivität",
+  "The request timed out. Reload to check the latest data.": "Die Anfrage ist abgelaufen. Laden Sie die aktuellen Daten neu.",
+  "The details are invalid. Check the highlighted fields and try again.": "Die Angaben sind ungültig. Prüfen Sie die markierten Felder.",
+  "This item is unavailable. Reload the workspace.": "Dieses Element ist nicht verfügbar. Laden Sie den Arbeitsbereich neu.",
+  "This API address is blocked by the connection safety policy.": "Diese API-Adresse wurde durch die Verbindungssicherheitsregeln gesperrt.",
+  "The connected application rejected this API key.": "Die verbundene Anwendung hat diesen API-Schlüssel abgelehnt.",
+  "Enter a valid public HTTPS API address.": "Geben Sie eine gültige öffentliche HTTPS-API-Adresse ein.",
+  "Approve the API address and enter a valid API key.": "Bestätigen Sie die API-Adresse und geben Sie einen gültigen API-Schlüssel ein.",
+  "This account already belongs to this workspace.": "Dieses Konto gehört bereits zu diesem Arbeitsbereich.",
+  "Use an ownership offer to appoint a new owner.": "Verwenden Sie ein Eigentumsangebot, um einen neuen Eigentümer zu bestimmen.",
+  "This field is required.": "Dieses Feld ist erforderlich.",
+  "Use at most {count} characters.": "Verwenden Sie höchstens {count} Zeichen.",
+  "Enter the six-digit authenticator code.": "Geben Sie den sechsstelligen Authenticator-Code ein.",
+  "Enter a valid email address.": "Geben Sie eine gültige E-Mail-Adresse ein.",
+  "Enter a valid HTTPS URL.": "Geben Sie eine gültige HTTPS-Adresse ein.",
+  "Check the highlighted fields.": "Prüfen Sie die markierten Felder.",
+  "Check result": "Ergebnis prüfen",
+  "No members yet.": "Noch keine Mitglieder."
 }

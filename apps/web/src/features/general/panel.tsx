@@ -1,8 +1,11 @@
 "use client";
 
 import { canAssignRole, hasPermission } from "@openhubpanel/security/permissions";
-import { type FormEvent, useCallback, useEffect, useId, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { LanguageSelector, useLocale } from "@/i18n/provider";
+import { type Field, GeneralForm } from "./form";
+import { errorMessage } from "./messages";
+import { readState, requestJson } from "./request";
 
 type Workspace = { id: string; name: string; role: string };
 type App = { id: string; name: string; panel_url: string | null; archived: boolean };
@@ -49,15 +52,6 @@ type Articles = {
   revision: string;
   writeEnabled: boolean;
 };
-type Field = {
-  name: string;
-  label: string;
-  type?: string;
-  value?: string;
-  optional?: boolean;
-  checked?: boolean;
-  options?: { value: string; label: string }[];
-};
 const roles = ["owner", "admin", "editor", "viewer"];
 const auditLabels: Record<string, string> = {
   "workspace.created": "Workspace created",
@@ -82,104 +76,7 @@ const auditLabels: Record<string, string> = {
   "connection.write.conflict": "Article change conflicted",
   "connection.write.unknown": "Article change result uncertain",
 };
-const errors: Record<string, string> = {
-  UNAUTHENTICATED: "Your session ended. Please sign in again.",
-  FORBIDDEN: "You do not have permission for this action.",
-  INVALID_CREDENTIALS: "Sign-in details could not be verified.",
-  INVALID_CODE: "The authenticator code is invalid or already used. Wait for a new code.",
-  INVALID_BOOTSTRAP: "The setup token is invalid, expired or already used.",
-  INVALID_INVITATION: "This invitation is invalid, expired or already used.",
-  SIGN_IN_REQUIRED: "This account exists. Sign in to accept the invitation.",
-  LAST_OWNER: "The last owner must remain active. Transfer ownership first.",
-  RATE_LIMITED: "Too many attempts. Please try again later.",
-  CONFLICT: "The data changed. Reload and review before trying again.",
-  UNKNOWN_OUTCOME: "The result is uncertain. Retry the same request to check its result.",
-  PASSWORD_LENGTH: "Use a password between 6 and 256 characters.",
-  COMMON_PASSWORD: "This password is too common. Choose another password.",
-  PASSWORD_COMPROMISED: "This password has appeared in a data breach. Choose another password.",
-  PASSWORD_CHECK_UNAVAILABLE: "The password safety check is unavailable. Please try again later.",
-  REMOTE_READ_ONLY: "This connection only allows reading.",
-  CONNECTION_NOT_FOUND: "This connection is unavailable or disabled.",
-  CONNECTION_UNAVAILABLE: "The connected application could not be reached.",
-  INCOMPATIBLE_CONNECTION: "The application does not support the required API contract.",
-  INVALID_TRANSFER: "This ownership offer is unavailable or expired.",
-};
-function GeneralForm({
-  title,
-  fields,
-  submit,
-  disabled,
-  run,
-}: {
-  title: string;
-  fields: Field[];
-  submit: string;
-  disabled: boolean;
-  run: (input: Record<string, string | boolean>) => Promise<void>;
-}) {
-  const { t } = useLocale();
-  const id = useId();
-  async function onSubmit(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    const form = event.currentTarget;
-    const data = new FormData(form);
-    const input: Record<string, string | boolean> = {};
-    for (const field of fields)
-      input[field.name] =
-        field.type === "checkbox" ? data.has(field.name) : String(data.get(field.name) ?? "");
-    await run(input);
-    for (const element of form.elements)
-      if (element instanceof HTMLInputElement && element.type === "password") element.value = "";
-  }
-  return (
-    <form className="general-form" onSubmit={onSubmit} aria-label={t(title)}>
-      <h3>{t(title)}</h3>
-      {fields.map((field) => (
-        <div key={field.name}>
-          <label htmlFor={`${id}-${field.name}`}>{t(field.label)}</label>
-          {field.options ? (
-            <select
-              id={`${id}-${field.name}`}
-              name={field.name}
-              defaultValue={field.value}
-              disabled={disabled}
-            >
-              {field.options.map((option) => (
-                <option key={option.value} value={option.value}>
-                  {t(option.label)}
-                </option>
-              ))}
-            </select>
-          ) : (
-            <input
-              id={`${id}-${field.name}`}
-              name={field.name}
-              type={field.type ?? "text"}
-              defaultValue={field.value}
-              defaultChecked={field.checked}
-              required={!field.optional}
-              disabled={disabled}
-              autoComplete={
-                field.name === "password"
-                  ? "current-password"
-                  : field.name === "code"
-                    ? "one-time-code"
-                    : "off"
-              }
-              minLength={field.name === "password" ? 6 : undefined}
-              maxLength={field.name === "password" ? 256 : field.name === "code" ? 6 : undefined}
-              inputMode={field.name === "code" ? "numeric" : undefined}
-              pattern={field.name === "code" ? "[0-9]{6}" : undefined}
-            />
-          )}
-        </div>
-      ))}
-      <button type="submit" disabled={disabled}>
-        {t(submit)}
-      </button>
-    </form>
-  );
-}
+
 export function GeneralPanel({ basePath }: { basePath: string }) {
   const { t } = useLocale();
   const [csrf, setCsrf] = useState("");
@@ -189,6 +86,7 @@ export function GeneralPanel({ basePath }: { basePath: string }) {
   const [snapshot, setSnapshot] = useState<Snapshot | null>(null);
   const [connections, setConnections] = useState<Connection[]>([]);
   const [articles, setArticles] = useState<{ connection: string; data: Articles } | null>(null);
+  const [pendingWrite, setPendingWrite] = useState<Record<string, unknown> | null>(null);
   const [tab, setTab] = useState("Overview");
   const [phase, setPhase] = useState("login");
   const [secret, setSecret] = useState("");
@@ -200,35 +98,35 @@ export function GeneralPanel({ basePath }: { basePath: string }) {
   const [busy, setBusy] = useState(false);
   const [loading, setLoading] = useState(true);
   const generation = useRef(0);
+  const inFlight = useRef(false);
+  const clearFeedback = useCallback(() => {
+    setError("");
+    setMessage("");
+  }, []);
   const operationKeys = useRef(new Map<string, string>());
   const api = useCallback(
     async <T,>(route: string, payload?: unknown): Promise<T> => {
-      let response: Response;
-      try {
-        response = await fetch(`${basePath}/api/general/${route}`, {
-          cache: "no-store",
-          ...(payload === undefined
-            ? {}
-            : {
-                method: "POST",
-                headers: { "content-type": "application/json", "x-csrf-token": csrf },
-                body: JSON.stringify(payload),
-              }),
-        });
-      } catch {
-        throw new Error("NETWORK_ERROR");
-      }
-      const data = await response.json();
-      if (!response.ok) throw new Error(typeof data.error === "string" ? data.error : "UNAVAILABLE");
-      return data as T;
+      return requestJson<T>(
+        `${basePath}/api/general/${route}`,
+        payload === undefined
+          ? {}
+          : {
+              method: "POST",
+              headers: { "content-type": "application/json", "x-csrf-token": csrf },
+              body: JSON.stringify(payload),
+            },
+      );
     },
     [basePath, csrf],
   );
   const refreshState = useCallback(async () => {
-    const state = await api<{ csrf: string; authenticated: boolean; workspaces: Workspace[] }>("state");
+    const state = readState(await api<unknown>("state"));
     setCsrf(state.csrf);
     setAuthenticated(state.authenticated);
     setWorkspaces(state.workspaces);
+    setWorkspace((current) =>
+      state.workspaces.some((item) => item.id === current) ? current : (state.workspaces[0]?.id ?? ""),
+    );
     if (!state.authenticated) {
       setSnapshot(null);
       setConnections([]);
@@ -245,21 +143,21 @@ export function GeneralPanel({ basePath }: { basePath: string }) {
       setInvite(proof);
       history.replaceState(null, "", location.pathname);
     }
-    fetch(`${basePath}/api/general/state`, { cache: "no-store" })
-      .then(async (response) => {
-        if (!response.ok) throw new Error("UNAVAILABLE");
-        const state = await response.json();
+    requestJson<unknown>(`${basePath}/api/general/state`)
+      .then((value) => {
+        const state = readState(value);
         if (!active) return;
         setCsrf(state.csrf);
         setAuthenticated(state.authenticated);
         setWorkspaces(state.workspaces);
         setWorkspace(state.workspaces[0]?.id ?? "");
+        if (!state.authenticated || !state.workspaces.length) setLoading(false);
       })
-      .catch(() => {
-        if (active) setError("The service is unavailable. Please try again.");
-      })
-      .finally(() => {
-        if (active) setLoading(false);
+      .catch((failure) => {
+        if (active) {
+          setError(errorMessage(failure instanceof Error ? failure.message : "UNAVAILABLE"));
+          setLoading(false);
+        }
       });
     return () => {
       active = false;
@@ -271,6 +169,12 @@ export function GeneralPanel({ basePath }: { basePath: string }) {
         api<Snapshot>(`workspace?workspace=${id}`),
         api<Connection[]>(`connections?workspace=${id}`),
       ]);
+      if (
+        !data ||
+        data.workspaceId !== id ||
+        ![data.applications, data.members, data.invitations, data.events, list].every(Array.isArray)
+      )
+        throw new Error("UNAVAILABLE");
       if (generation.current === current) {
         setSnapshot(data);
         setConnections(list);
@@ -284,19 +188,23 @@ export function GeneralPanel({ basePath }: { basePath: string }) {
     setConnections([]);
     setArticles(null);
     setInviteLink("");
-    setError("");
-    if (!workspace || !authenticated) return;
+    setPendingWrite(null);
+    if (!workspace || !authenticated) {
+      if (authenticated) setLoading(false);
+      return;
+    }
     setLoading(true);
     loadWorkspace(workspace, current)
       .catch((failure: Error) => {
-        if (generation.current === current)
-          setError(errors[failure.message] ?? "The service is unavailable. Please try again.");
+        if (generation.current === current) setError(errorMessage(failure.message));
       })
       .finally(() => {
         if (generation.current === current) setLoading(false);
       });
   }, [workspace, authenticated, loadWorkspace]);
   async function run(action: () => Promise<void>) {
+    if (inFlight.current) return;
+    inFlight.current = true;
     setBusy(true);
     setMessage("");
     setError("");
@@ -304,12 +212,8 @@ export function GeneralPanel({ basePath }: { basePath: string }) {
       await action();
     } catch (failure) {
       const code = failure instanceof Error ? failure.message : "UNAVAILABLE";
-      setError(
-        errors[code] ??
-          (code === "NETWORK_ERROR"
-            ? "Connection lost. Check your network and retry."
-            : "The request could not be completed. Review the details and try again."),
-      );
+      setMessage("");
+      setError(errorMessage(code));
       if (["UNAUTHENTICATED", "FORBIDDEN"].includes(code)) {
         setSnapshot(null);
         setConnections([]);
@@ -317,6 +221,7 @@ export function GeneralPanel({ basePath }: { basePath: string }) {
         await refreshState().catch(() => {});
       }
     } finally {
+      inFlight.current = false;
       setBusy(false);
     }
   }
@@ -328,14 +233,41 @@ export function GeneralPanel({ basePath }: { basePath: string }) {
         status?: string;
         remoteKeyRevocationRequired?: boolean;
         version?: number;
-      }>(action, { ...data, workspace });
-      setMessage(
-        result.status === "unavailable"
-          ? "The connected application could not be reached."
-          : result.remoteKeyRevocationRequired
-            ? "Connection disabled. Revoke its API key in the connected application too."
-            : "Changes saved.",
-      );
+        ok?: boolean;
+      }>(action, { ...data, workspace }).catch((failure) => {
+        if (action === "article" && ["UNKNOWN_OUTCOME", "NETWORK_ERROR", "TIMEOUT"].includes(failure.message))
+          setPendingWrite({ ...data, code: "" });
+        throw failure;
+      });
+      if (
+        ["workspaces", "application", "connection"].includes(action) &&
+        (typeof result.id !== "string" || !result.id)
+      )
+        throw new Error("UNAVAILABLE");
+      if (action === "invitation" && (typeof result.token !== "string" || !result.token))
+        throw new Error("UNAVAILABLE");
+      if (
+        ["member", "cancel-invitation", "transfer", "accept-transfer"].includes(action) &&
+        result.ok !== true
+      )
+        throw new Error("UNAVAILABLE");
+      if (
+        action === "test-connection" &&
+        !["connected", "unavailable", "incompatible"].includes(result.status ?? "")
+      )
+        throw new Error("UNAVAILABLE");
+      if (action === "change-connection" && typeof result.remoteKeyRevocationRequired !== "boolean")
+        throw new Error("UNAVAILABLE");
+      if (action === "article") {
+        if (
+          result.ok !== true ||
+          !Number.isSafeInteger(result.version) ||
+          Number(result.version) <= Number(data.expectedVersion)
+        )
+          throw new Error("UNAVAILABLE");
+        setPendingWrite(null);
+      }
+
       if (result.token) setInviteLink(`${location.origin}${basePath}/workspace#invite=${result.token}`);
       if (action === "article" && result.version) {
         setArticles((current) =>
@@ -360,6 +292,14 @@ export function GeneralPanel({ basePath }: { basePath: string }) {
       else if (state.workspaces.some((item) => item.id === workspace))
         await loadWorkspace(workspace, generation.current);
       else setWorkspace(state.workspaces[0]?.id ?? "");
+      if (result.status === "unavailable") throw new Error("CONNECTION_UNAVAILABLE");
+      setMessage(
+        result.status === "unavailable"
+          ? "The connected application could not be reached."
+          : result.remoteKeyRevocationRequired
+            ? "Connection disabled. Revoke its API key in the connected application too."
+            : "Changes saved.",
+      );
     });
   }
   const code: Field = { name: "code", label: "Current authenticator code", type: "password" };
@@ -372,6 +312,7 @@ export function GeneralPanel({ basePath }: { basePath: string }) {
     extra: Record<string, unknown> = {},
   ) => (
     <GeneralForm
+      onStart={clearFeedback}
       title={title}
       fields={fields}
       submit={submit}
@@ -397,6 +338,16 @@ export function GeneralPanel({ basePath }: { basePath: string }) {
           </p>
         )}
         {message && <p role="status">{t(message)}</p>}
+        {error && (
+          <button type="button" disabled={busy} onClick={() => location.reload()}>
+            {t("Reload")}
+          </button>
+        )}
+        {pendingWrite && (
+          <button type="button" disabled={busy} onClick={() => mutate("article", pendingWrite)}>
+            {t("Check result")}
+          </button>
+        )}
         {!!recovery.length && (
           <section>
             <h2>{t("Save your recovery codes")}</h2>
@@ -413,6 +364,7 @@ export function GeneralPanel({ basePath }: { basePath: string }) {
               <>
                 <p>{t("An authenticator code is required at every sign-in.")}</p>
                 <GeneralForm
+                  onStart={clearFeedback}
                   title="Sign in"
                   fields={[
                     { name: "email", label: "Email", type: "email" },
@@ -430,6 +382,7 @@ export function GeneralPanel({ basePath }: { basePath: string }) {
                   }
                 />
                 <GeneralForm
+                  onStart={clearFeedback}
                   title="First installation"
                   fields={[
                     { name: "token", label: "Setup token", type: "password" },
@@ -448,6 +401,7 @@ export function GeneralPanel({ basePath }: { basePath: string }) {
                 />
                 {invite && (
                   <GeneralForm
+                    onStart={clearFeedback}
                     title="Join with invitation"
                     fields={[{ name: "password", label: "Password", type: "password" }]}
                     submit="Create invited account"
@@ -475,6 +429,7 @@ export function GeneralPanel({ basePath }: { basePath: string }) {
                   </>
                 )}
                 <GeneralForm
+                  onStart={clearFeedback}
                   title="Verify authenticator"
                   fields={[code]}
                   submit="Verify"
@@ -511,6 +466,9 @@ export function GeneralPanel({ basePath }: { basePath: string }) {
                 value={workspace}
                 disabled={busy}
                 onChange={(event) => {
+                  if (event.target.value === workspace) return;
+                  clearFeedback();
+                  setPendingWrite(null);
                   generation.current++;
                   setSnapshot(null);
                   setConnections([]);
@@ -674,6 +632,7 @@ export function GeneralPanel({ basePath }: { basePath: string }) {
                   <p>{t("You do not have permission for this action.")}</p>
                 ) : (
                   <>
+                    {!snapshot.members.length && <p>{t("No members yet.")}</p>}
                     {snapshot.members.map((member) => (
                       <article key={member.user_id}>
                         <h3>{member.display_name}</h3>
@@ -887,6 +846,7 @@ export function GeneralPanel({ basePath }: { basePath: string }) {
                         </p>
                         {articles.data.writeEnabled && hasPermission(snapshot.role, "content.write") && (
                           <GeneralForm
+                            onStart={clearFeedback}
                             title="Edit article"
                             fields={[{ name: "title", label: "Title", value: item.title }, code]}
                             submit="Save title or check result"
@@ -899,7 +859,7 @@ export function GeneralPanel({ basePath }: { basePath: string }) {
                                 expectedVersion: item.version,
                                 revision: articles.data.revision,
                               };
-                              const fingerprint = JSON.stringify({ ...payload, code: undefined });
+                              const fingerprint = JSON.stringify({ ...payload, workspace, code: undefined });
                               let idempotencyKey = operationKeys.current.get(fingerprint);
                               if (!idempotencyKey) {
                                 idempotencyKey = crypto.randomUUID();
