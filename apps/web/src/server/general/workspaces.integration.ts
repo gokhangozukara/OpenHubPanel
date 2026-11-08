@@ -3,6 +3,7 @@ import { randomBytes, randomUUID } from "node:crypto";
 import type { Database } from "@openhubpanel/db";
 import { generate, generateSecret } from "otplib";
 import { generalAuth } from "./auth";
+import { checkGeneralConnections } from "./connections.integration";
 import { digest, secretBox, token } from "./crypto";
 import { generalWorkspaces } from "./workspaces";
 
@@ -225,5 +226,17 @@ export async function checkGeneralWorkspaces(
       assert.equal(role?.rolbypassrls, false);
       assert.equal((await app`SELECT * FROM applications`).length, 0);
     },
+  );
+  await checkGeneralConnections(
+    admin,
+    app,
+    check,
+    key,
+    a.id,
+    b.id,
+    applicationA,
+    applicationB,
+    viewer,
+    owner,
   );
 }

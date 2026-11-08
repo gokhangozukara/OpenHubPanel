@@ -138,6 +138,7 @@ try {
   await admin.unsafe(await readFile("packages/db/migrations/0002_general_identity.sql", "utf8"));
   await checkGeneralIdentity(admin, app, check);
   await admin.unsafe(await readFile("packages/db/migrations/0003_workspace_management.sql", "utf8"));
+  await admin.unsafe(await readFile("packages/db/migrations/0004_workspace_connections.sql", "utf8"));
   await checkGeneralWorkspaces(admin, app, check);
   console.log(`PostgreSQL integration: ${passed} checks passed.`);
 } finally {
