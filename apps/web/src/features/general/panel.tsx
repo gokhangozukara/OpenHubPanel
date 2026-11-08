@@ -235,7 +235,10 @@ export function GeneralPanel({ basePath }: { basePath: string }) {
         version?: number;
         ok?: boolean;
       }>(action, { ...data, workspace }).catch((failure) => {
-        if (action === "article" && ["UNKNOWN_OUTCOME", "NETWORK_ERROR", "TIMEOUT"].includes(failure.message))
+        if (
+          action === "article" &&
+          ["UNKNOWN_OUTCOME", "NETWORK_ERROR", "TIMEOUT", "UNAVAILABLE"].includes(failure.message)
+        )
           setPendingWrite({ ...data, code: "" });
         throw failure;
       });
@@ -338,7 +341,7 @@ export function GeneralPanel({ basePath }: { basePath: string }) {
           </p>
         )}
         {message && <p role="status">{t(message)}</p>}
-        {error && (
+        {error && !pendingWrite && (
           <button type="button" disabled={busy} onClick={() => location.reload()}>
             {t("Reload")}
           </button>

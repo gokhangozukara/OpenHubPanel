@@ -12,6 +12,9 @@ import AxeBuilder from "@axe-core/playwright";
 import { chromium, expect } from "@playwright/test";
 import EmbeddedPostgres from "embedded-postgres";
 import { createDatabase } from "../packages/db/src/index";
+import { contentService } from "./fixtures/content-service";
+import { checkIndependentBrowser } from "./fixtures/general-http-browser";
+import { checkGeneralStates } from "./fixtures/general-states-browser";
 
 const root = process.cwd();
 const webRequire = createRequire(path.join(root, "apps/web/package.json"));
@@ -50,6 +53,7 @@ let app: ReturnType<typeof createDatabase> | undefined;
 let child: ReturnType<typeof spawn> | undefined;
 let browser: Awaited<ReturnType<typeof chromium.launch>> | undefined;
 let proxy: ReturnType<typeof createServer> | undefined;
+let remote: Awaited<ReturnType<typeof contentService>> | undefined;
 let passed = 0;
 async function check(name: string, run: () => Promise<void>) {
   await run();
@@ -127,6 +131,10 @@ try {
         },
       );
       remote.on("error", () => {
+        if (outgoing.headersSent || outgoing.destroyed) {
+          outgoing.destroy();
+          return;
+        }
         outgoing.writeHead(502);
         outgoing.end();
       });
@@ -139,17 +147,21 @@ try {
     path.join(root, "apps/web/.next/standalone/apps/web/.next/static"),
     { recursive: true },
   );
+  remote = await contentService(fixture);
   child = spawn(
     process.execPath,
     [
       "--import",
       pathToFileURL(path.join(root, "scripts/general-test-fetch.mjs")).href,
+      "--import",
+      pathToFileURL(path.join(root, "scripts/general-test-network.mjs")).href,
       path.join(root, "apps/web/.next/standalone/apps/web/server.js"),
     ],
     {
       cwd: root,
       env: {
         ...process.env,
+        OPENHUB_TEST_TRANSPORT_FILE: remote.metadata,
         NODE_ENV: "production",
         HOSTNAME: "127.0.0.1",
         PORT: String(webPort),
@@ -186,11 +198,38 @@ try {
   const context = await browser.newContext({ ignoreHTTPSErrors: true, locale: "en-US" });
   const page = await context.newPage();
   const pageErrors: string[] = [];
+  const consoleErrors: string[] = [];
+  page.on("console", (message) => {
+    if (message.type() === "error" && !message.text().startsWith("Failed to load resource:"))
+      consoleErrors.push(message.text());
+  });
+  async function authAxe() {
+    for (const width of [1280, 768, 390, 320]) {
+      await page.setViewportSize({ width, height: 900 });
+      assert.deepEqual(
+        (await new AxeBuilder({ page }).withTags(["wcag2a", "wcag2aa", "wcag21aa"]).analyze()).violations.map(
+          (row) => row.id,
+        ),
+        [],
+      );
+      assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth));
+    }
+  }
   page.on("pageerror", (error) => pageErrors.push(error.message));
   const userPassword = `T${randomBytes(3).toString("hex").slice(0, 5)}`;
   let secret = "";
   await check("general production UI bootstraps once and requires authenticator enrollment", async () => {
     await page.goto(`${origin}/workspace`);
+    await expect(page.getByRole("button", { name: "Sign in", exact: true })).toBeEnabled();
+    await authAxe();
+    const login = page.getByRole("form", { name: "Sign in", exact: true });
+    await login.getByLabel("Email", { exact: true }).fill("unknown@example.test");
+    await login.getByLabel("Password", { exact: true }).fill(userPassword);
+    await login.getByRole("button", { name: "Sign in", exact: true }).click();
+    await expect(page.locator("main").getByRole("alert")).toHaveText(
+      "Sign-in details could not be verified.",
+    );
+    await authAxe();
     const form = page.getByRole("form", { name: "First installation", exact: true });
     await form.getByLabel("Setup token", { exact: true }).fill(bootstrap);
     await form.getByLabel("Email", { exact: true }).fill("browser-owner@example.test");
@@ -198,12 +237,30 @@ try {
     await form.getByRole("button", { name: "Start setup", exact: true }).click();
     await expect(page.getByRole("heading", { name: "Set up your authenticator", exact: true })).toBeVisible();
     secret = (await page.locator("pre").textContent()) ?? "";
+    await authAxe();
     const verify = page.getByRole("form", { name: "Verify authenticator", exact: true });
+    await expect(verify.getByLabel("Current authenticator code", { exact: true })).toHaveAttribute(
+      "autocomplete",
+      "one-time-code",
+    );
+    await expect(verify.getByLabel("Current authenticator code", { exact: true })).toHaveAttribute(
+      "inputmode",
+      "numeric",
+    );
+    await verify
+      .getByLabel("Current authenticator code", { exact: true })
+      .fill((await generate({ secret })) === "000000" ? "111111" : "000000");
+    await verify.getByRole("button", { name: "Verify", exact: true }).click();
+    await expect(page.locator("main").getByRole("alert")).toHaveText(
+      "The authenticator code is invalid or already used. Wait for a new code.",
+    );
+    await authAxe();
     await verify.getByLabel("Current authenticator code", { exact: true }).fill(await generate({ secret }));
     await verify.getByRole("button", { name: "Verify", exact: true }).click();
     await expect(page.getByRole("heading", { name: "Your workspaces", exact: true })).toBeVisible();
     await expect(page.getByText("You do not have a workspace yet.", { exact: true })).toBeVisible();
     await page.getByRole("button", { name: "I saved my codes", exact: true }).click();
+    await authAxe();
     const cookies = await context.cookies();
     const session = cookies.find((cookie) => cookie.name === "__Host-hubgeneral_session");
     assert.ok(session?.secure && session.httpOnly && session.sameSite === "Strict");
@@ -244,6 +301,17 @@ try {
       await new Promise((resolve) => setTimeout(resolve, 500));
     }
   }
+  await checkGeneralStates({ page, context, browser, admin, origin, workspaceA, workspaceB, fixture, check });
+  await checkIndependentBrowser({
+    page,
+    context,
+    admin,
+    remote,
+    origin,
+    workspace: workspaceA,
+    freshCode,
+    check,
+  });
   let invitation = "";
   await check(
     "real connection form encrypts its key, reports a failed test honestly and disables access",
@@ -396,8 +464,10 @@ try {
     }
     await page.getByLabel("Language", { exact: true }).selectOption("tr");
     await expect(page.getByRole("heading", { name: "Çalışma alanların", exact: true })).toBeVisible();
+    await expect(page.locator("html")).toHaveAttribute("lang", "tr");
     await page.locator(".language-selector select").selectOption("de");
     await expect(page.getByRole("heading", { name: "Deine Arbeitsbereiche", exact: true })).toBeVisible();
+    await expect(page.locator("html")).toHaveAttribute("lang", "de");
     assert.equal(
       (await new AxeBuilder({ page }).withTags(["wcag2a", "wcag2aa", "wcag21aa"]).analyze()).violations
         .length,
@@ -439,24 +509,56 @@ try {
   });
   await check("six-character password login still requires a fresh authenticator code", async () => {
     const login = page.getByRole("form", { name: "Sign in", exact: true });
-    await login.getByLabel("Email", { exact: true }).fill("browser-owner@example.test");
-    await login.getByLabel("Password", { exact: true }).fill(userPassword);
-    await login.getByRole("button", { name: "Sign in", exact: true }).click();
+    async function keyboardTo(target: ReturnType<typeof page.getByLabel>) {
+      for (let count = 0; count < 40; count++) {
+        if (await target.evaluate((node) => document.activeElement === node)) return;
+        await page.keyboard.press("Tab");
+      }
+      throw new Error("Keyboard cannot reach the requested control");
+    }
+    await keyboardTo(login.getByLabel("Email", { exact: true }));
+    await page.keyboard.type("browser-owner@example.test");
+    await keyboardTo(login.getByLabel("Password", { exact: true }));
+    await context.grantPermissions(["clipboard-read", "clipboard-write"]);
+    await page.evaluate((value) => navigator.clipboard.writeText(value), userPassword);
+    await page.keyboard.press("ControlOrMeta+V");
+    assert.equal(
+      (await login.getByLabel("Password", { exact: true }).inputValue()) === userPassword,
+      true,
+      "Clipboard paste must preserve the password",
+    );
+    await expect(login.getByLabel("Password", { exact: true })).toHaveAttribute(
+      "autocomplete",
+      "current-password",
+    );
+    await keyboardTo(login.getByRole("button", { name: "Sign in", exact: true }));
+    assert.ok(
+      await login
+        .getByRole("button", { name: "Sign in", exact: true })
+        .evaluate((node) => getComputedStyle(node).outlineStyle !== "none"),
+    );
+    await login.getByRole("button", { name: "Sign in", exact: true }).press("Enter");
     await expect(page.getByRole("form", { name: "Verify authenticator", exact: true })).toBeVisible();
     assert.equal(
       (await (await context.request.get(`${origin}/api/general/state`)).json()).authenticated,
       false,
     );
-    await page.getByLabel("Current authenticator code", { exact: true }).fill(await freshCode());
-    await page.getByRole("button", { name: "Verify", exact: true }).click();
+    await keyboardTo(page.getByLabel("Current authenticator code", { exact: true }));
+    await page.keyboard.type(await freshCode());
+    await page.getByLabel("Current authenticator code", { exact: true }).press("Enter");
     await expect(page.getByRole("heading", { name: "Your workspaces", exact: true })).toBeVisible();
+    assert.deepEqual(pageErrors, []);
+    assert.deepEqual(consoleErrors, []);
   });
   console.log(`General production browser: ${passed} scenarios passed.`);
 } finally {
   await browser?.close();
-  child?.kill();
-  if (child && child.exitCode === null)
-    await new Promise<void>((resolve) => child?.once("exit", () => resolve()));
+  await remote?.close();
+  if (child && child.exitCode === null && child.signalCode === null) {
+    const exit = new Promise<void>((resolve) => child?.once("exit", () => resolve()));
+    child.kill();
+    await exit;
+  }
   proxy?.closeAllConnections();
   if (proxy) await new Promise<void>((resolve) => proxy?.close(() => resolve()));
   await app?.end({ timeout: 5 });
