@@ -9,11 +9,11 @@ The repository is **private**. Keep it private until Gokhan Gozukara explicitly 
 - [x] Early-development status and synthetic preview separate from production.
 - [x] Local research, private findings, credentials, runtime env, backups, generated artifacts excluded from Git/Docker.
 - [x] Locked dependencies, license inventory, minimal CI permissions, SHA-pinned actions.
-- [ ] Recheck final staged content and full history with Gitleaks; retain only exact justified false positives.
-- [ ] Verify English names/code/comments/docs and relative links. Translated copy belongs in interface catalogs.
-- [ ] Review screenshots/examples for private data and misleading claims.
+- [x] Recheck final staged content and full history with Gitleaks; retain only exact justified false positives.
+- [x] Verify English names/code/comments/docs and relative links. Translated copy belongs in interface catalogs.
+- [x] Review screenshots/examples for private data and misleading claims.
 - [ ] Configure branch review protections and release policy for current visibility/account features.
-- [ ] Recheck GitHub vulnerability-reporting availability before opening; private email is established.
+- [x] Recheck GitHub vulnerability-reporting availability before opening; private email is established.
 - [ ] Wait for the owner's explicit instruction before public visibility.
 
 Ignore rules do not remove tracked files or historical secrets. Revoke/rotate exposed secrets first, then review history/artifacts. Share reviewed Git content, not a ZIP of the research working directory.

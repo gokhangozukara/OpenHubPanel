@@ -1,16 +1,16 @@
 # OpenHubPanel project status
 
-Updated: 2026-11-08.
+Updated: 2026-11-26.
 
-Repository: [gokhangozukara/OpenHubPanel](https://github.com/gokhangozukara/OpenHubPanel). **Private until the owner explicitly requests public visibility.**
+Repository: [gokhangozukara/OpenHubPanel](https://github.com/gokhangozukara/OpenHubPanel).
 
 ## Current delivery
 
-The `feat/general-workspace-mvp` branch adds a separate working general product at `/workspace`: PostgreSQL multi-user password/TOTP, restricted recovery, revocable sessions, workspaces, four roles, members/invitations/ownership, applications, encrypted connections and scoped audit. It uses real APIs and keeps the single-owner `/live` adapter separate. This branch has not been deployed to the live installation. See [setup](docs/deployment/general-workspaces.md), [ADR-010](docs/decisions/010-general-workspace-identity.md) and [acceptance evidence](docs/research/general-workspace-mvp.md).
+The general workspace MVP (merged into `main` via PR #1) provides a separate working general product at `/workspace`: PostgreSQL multi-user password/TOTP, restricted recovery, revocable sessions, workspaces, four roles, members/invitations/ownership, applications, encrypted connections and scoped audit. It uses real APIs and keeps the single-owner `/live` adapter separate. See [setup](docs/deployment/general-workspaces.md), [ADR-010](docs/decisions/010-general-workspace-identity.md) and [acceptance evidence](docs/research/general-workspace-mvp.md).
 
 LOOP-2 baseline verification: 93 unit tests, 37 real PostgreSQL checks and 25 standalone-production browser scenarios, including real operator CLIs, two workspaces/users, six-character password re-login, mandatory TOTP, invitation acceptance, connection lifecycle, mobile/three languages/automated AA and revocation. The [LOOP-2 evidence](docs/research/loop-2-release-gate.md) records the completed independent-HTTPS write and comprehensive state/accessibility matrix: 20/20 requested MVP criteria, 10/10 bounded acceptance. General restore/load/operational release work remains open.
 
-The subsequent [trusted-browser update](docs/research/trusted-devices.md) adds an opt-in 30-day sign-in-code exception after verified TOTP. Passwords and sensitive-action TOTP remain required; expiry does not slide, and security controls can revoke trust. Additional verification passes 93 unit tests, 44 real PostgreSQL checks, 17 preview tests and 4 production security tests plus 30 general browser scenarios. This change remains on the feature branch, without a live migration or deployment.
+The subsequent [trusted-browser update](docs/research/trusted-devices.md) adds an opt-in 30-day sign-in-code exception after verified TOTP. Passwords and sensitive-action TOTP remain required; expiry does not slide, and security controls can revoke trust. Additional verification passes 93 unit tests, 44 real PostgreSQL checks, 17 preview tests and 4 production security tests plus 30 general browser scenarios.
 
 The owner's explicitly requested first live installation now has a separate [single-owner adapter](docs/deployment/owner-installation.md): Character selection, username and six-character-minimum Argon2id passwords, optional TOTP at every enabled sign-in, IP allowlists, opaque revocable sessions, restricted recovery/manual re-enrollment, native forms for six configuration sections and push delivery/history, version preconditions, per-save step-up, persistent idempotency, transactional host audit and encrypted identity backup/restore. It reads real application metadata through a narrow host connector. The owner has completed activation as the first live account. At the owner's request, the old panel links/templates/login have been removed from the running installation; native push replaces the old notification page. This is a single-instance compatibility delivery, not the general multi-client P0. Studio and specialized music workflows are not native features.
 

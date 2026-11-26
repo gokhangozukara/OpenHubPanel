@@ -1,18 +1,21 @@
 # OpenHubPanel
 
+[![CI](https://github.com/gokhangozukara/OpenHubPanel/actions/workflows/ci.yml/badge.svg)](https://github.com/gokhangozukara/OpenHubPanel/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+
 **All in one panel.**
 
 Too many projects means too many admin panels. OpenHubPanel is being built to bring websites, applications, and the people who manage them into one place.
 
 Use it as an application's admin panel, or as a hub for several. Connect a project, give your team the access they need, and get daily work done without rebuilding the same management screens each time.
 
-This is early development. A separate [general workspace MVP](docs/deployment/general-workspaces.md) now provides PostgreSQL accounts, mandatory TOTP enrollment with opt-in 30-day trusted browsers, workspaces, roles, invitations, applications and scoped API connections at `/workspace`. The [single-owner installation](docs/deployment/owner-installation.md) continues to support existing applications. The general MVP is developed on `feat/general-workspace-mvp`; it has not been deployed to that live installation. Read the [acceptance evidence and release limits](docs/research/general-workspace-mvp.md) before using real customer data.
+This is early development (`v0.1.0`). A separate [general workspace MVP](docs/deployment/general-workspaces.md) on `main` provides PostgreSQL accounts, mandatory TOTP enrollment with opt-in 30-day trusted browsers, workspaces, roles, invitations, applications and scoped API connections at `/workspace`. The [single-owner installation](docs/deployment/owner-installation.md) continues to support existing applications separately. Read the [acceptance evidence and release limits](docs/research/general-workspace-mvp.md) before using real customer data.
 
 ![OpenHubPanel local preview with synthetic workspace, application, and team data](docs/screenshots/local-preview.png)
 
 ## Try it locally
 
-You need Git and Node.js 24. The preview needs no Docker, API keys, or cloud account. Repository access is currently restricted while development continues.
+You need Git and Node.js 24. The preview needs no Docker, API keys, or cloud account.
 
 ```sh
 git clone https://github.com/gokhangozukara/OpenHubPanel.git
@@ -46,6 +49,10 @@ The repository includes the general workspace MVP, a separate synthetic preview,
 Read the [project status](PROJECT_STATUS.md) for the boundary between working code and planned features. Start development with the [setup guide](docs/DEVELOPMENT.md). See the [vision](docs/product/vision.md), [roadmap](docs/roadmap/implementation.md), and [security design](docs/architecture/security.md) for the intended product.
 
 For a new independent single-owner panel, follow the [standalone installation guide](docs/deployment/standalone-installation.md). The interface includes **Add application**, configuration URLs and **Connections** for API integrations and panel shortcuts. Setup starts with an empty application list and does not require an old panel. API integration currently supports article lists and separately approved title changes; arbitrary backend management remains outside that contract. General workspace setup uses the separate guide above.
+
+## Related project
+
+Looking for a lightweight, single-server admin panel with zero external database setup (SQLite + drop-in JSON plugins)? Check out [OpenPanelX](https://github.com/gokhangozukara/OpenPanelX).
 
 ## Contribute
 
