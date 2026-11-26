@@ -108,6 +108,10 @@ const proxy = createSecureServer(
       },
     );
     target.on("error", () => {
+      if (outgoing.headersSent || outgoing.destroyed) {
+        outgoing.destroy();
+        return;
+      }
       outgoing.writeHead(502);
       outgoing.end();
     });
@@ -479,8 +483,9 @@ try {
 } finally {
   await browser?.close();
   if (child.exitCode === null && child.signalCode === null) {
+    const exit = new Promise((resolve) => child.once("exit", resolve));
     child.kill();
-    await new Promise((resolve) => child.once("exit", resolve));
+    await exit;
   }
   await new Promise((resolve) => proxy.close(resolve));
   await new Promise((resolve) => upstream.close(resolve));

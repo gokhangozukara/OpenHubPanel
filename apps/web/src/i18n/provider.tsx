@@ -1,6 +1,6 @@
 "use client";
 
-import { createContext, useContext, useEffect, useState } from "react";
+import { createContext, useContext, useEffect, useId, useState } from "react";
 import { catalogs, isLocale, type Locale, localeCookie, preferredLocale, translate } from "./locale";
 
 type LocaleContext = {
@@ -69,10 +69,14 @@ export function useLocale() {
 
 export function LanguageSelector() {
   const { locale, setLocale, t } = useLocale();
+  const id = useId();
   return (
-    <label className="language-selector">
-      <span className="sr-only">{t("Language")}</span>
+    <div className="language-selector">
+      <label className="sr-only" htmlFor={id}>
+        {t("Language")}
+      </label>
       <select
+        id={id}
         value={locale}
         onChange={(event) => {
           if (isLocale(event.target.value)) setLocale(event.target.value);
@@ -88,6 +92,6 @@ export function LanguageSelector() {
           {catalogs.de.German}
         </option>
       </select>
-    </label>
+    </div>
   );
 }

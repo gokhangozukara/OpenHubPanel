@@ -4,6 +4,10 @@ import { readFile } from "node:fs/promises";
 import { createServer } from "node:net";
 import path from "node:path";
 import EmbeddedPostgres from "embedded-postgres";
+import { checkGeneralIdentity } from "../apps/web/src/server/general/auth.integration";
+import { checkIndependentHttp } from "../apps/web/src/server/general/http.integration";
+import { checkTrustedDevices } from "../apps/web/src/server/general/trusted-devices.integration";
+import { checkGeneralWorkspaces } from "../apps/web/src/server/general/workspaces.integration";
 import { createDatabase, withWorkspace } from "../packages/db/src/index";
 
 async function freePort(): Promise<number> {
@@ -133,6 +137,15 @@ try {
       /WORKSPACE_ACCESS_DENIED/,
     );
   });
+  await admin.unsafe(await readFile("packages/db/migrations/0002_general_identity.sql", "utf8"));
+
+  await admin.unsafe(await readFile("packages/db/migrations/0003_workspace_management.sql", "utf8"));
+  await admin.unsafe(await readFile("packages/db/migrations/0004_workspace_connections.sql", "utf8"));
+  await admin.unsafe(await readFile("packages/db/migrations/0005_trusted_devices.sql", "utf8"));
+  await checkGeneralIdentity(admin, app, check);
+  await checkTrustedDevices(admin, app, check);
+  await checkGeneralWorkspaces(admin, app, check);
+  await checkIndependentHttp(admin, app, check);
   console.log(`PostgreSQL integration: ${passed} checks passed.`);
 } finally {
   await appCleanup?.end({ timeout: 5 });

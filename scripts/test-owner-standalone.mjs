@@ -52,6 +52,10 @@ const proxy = createServer(
       },
     );
     remote.on("error", () => {
+      if (outgoing.headersSent || outgoing.destroyed) {
+        outgoing.destroy();
+        return;
+      }
       outgoing.writeHead(502);
       outgoing.end();
     });
@@ -173,7 +177,10 @@ try {
   console.log("Independent installation browser checks passed:", output);
 } finally {
   if (browser) await browser.close();
-  child.kill();
-  await new Promise((resolve) => child.once("exit", resolve));
+  if (child.exitCode === null && child.signalCode === null) {
+    const exit = new Promise((resolve) => child.once("exit", resolve));
+    child.kill();
+    await exit;
+  }
   await new Promise((resolve) => proxy.close(resolve));
 }
