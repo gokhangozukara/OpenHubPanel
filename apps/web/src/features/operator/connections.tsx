@@ -380,6 +380,8 @@ function ConnectionDetails({
 }) {
   const { t } = useLocale();
   const [items, setItems] = useState<Article[]>([]);
+  const [resource, setResource] = useState("articles");
+  const [resources, setResources] = useState<{ id: string; name: string; capabilities: string[] }[]>([]);
   const [selected, setSelected] = useState<Article | null>(null);
   const [writeEnabled, setWriteEnabled] = useState(false);
   const [proof, setProof] = useState("");
@@ -387,23 +389,31 @@ function ConnectionDetails({
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
   const [busy, setBusy] = useState(false);
-  const load = useCallback(async () => {
-    if (connection.kind !== "api") return;
-    setBusy(true);
-    try {
-      const result = (await call(`/connections/${connection.id}`)) as {
-        items: Article[];
-        writeEnabled: boolean;
-      };
-      setItems(result.items);
-      setWriteEnabled(result.writeEnabled);
-      setError("");
-    } catch (error) {
-      setError(error instanceof Error ? error.message : "UNAVAILABLE");
-    } finally {
-      setBusy(false);
-    }
-  }, [call, connection]);
+  const load = useCallback(
+    async (targetResource?: string) => {
+      if (connection.kind !== "api") return;
+      setBusy(true);
+      try {
+        const query = targetResource ? `?resource=${encodeURIComponent(targetResource)}` : "";
+        const result = (await call(`/connections/${connection.id}${query}`)) as {
+          resource?: string;
+          resources?: { id: string; name: string; capabilities: string[] }[];
+          items: Article[];
+          writeEnabled: boolean;
+        };
+        if (result.resource) setResource(result.resource);
+        if (result.resources) setResources(result.resources);
+        setItems(result.items);
+        setWriteEnabled(result.writeEnabled);
+        setError("");
+      } catch (error) {
+        setError(error instanceof Error ? error.message : "UNAVAILABLE");
+      } finally {
+        setBusy(false);
+      }
+    },
+    [call, connection],
+  );
   useEffect(() => {
     void load();
   }, [load]);
@@ -424,7 +434,31 @@ function ConnectionDetails({
       {connection.kind === "api" && (
         <>
           <div className="pilot-actions">
-            <button className="button secondary" type="button" disabled={busy} onClick={() => void load()}>
+            {resources.length > 1 && (
+              <label className="owner-field">
+                {t("Resources")}
+                <select
+                  value={resource}
+                  disabled={busy}
+                  onChange={(event) => {
+                    setSelected(null);
+                    void load(event.target.value);
+                  }}
+                >
+                  {resources.map((res) => (
+                    <option key={res.id} value={res.id}>
+                      {res.name}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            )}
+            <button
+              className="button secondary"
+              type="button"
+              disabled={busy}
+              onClick={() => void load(resource)}
+            >
               {t("Refresh content")}
             </button>
             <button
@@ -472,7 +506,8 @@ function ConnectionDetails({
           </div>
           {selected && (
             <ArticleEditor
-              key={selected.id}
+              key={`${resource}/${selected.id}`}
+              resource={resource}
               article={selected}
               connection={connection}
               call={call}
@@ -480,7 +515,7 @@ function ConnectionDetails({
               mfaEnabled={mfaEnabled}
               onDone={() => {
                 setSelected(null);
-                void load();
+                void load(resource);
               }}
             />
           )}
@@ -538,6 +573,7 @@ function ConnectionDetails({
   );
 }
 function ArticleEditor({
+  resource,
   article,
   connection,
   call,
@@ -545,6 +581,7 @@ function ArticleEditor({
   mfaEnabled,
   onDone,
 }: {
+  resource: string;
   article: Article;
   connection: Connection;
   call: Call;
@@ -558,6 +595,7 @@ function ArticleEditor({
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
   const [pending, setPending] = useState<{
+    resource?: string;
     title: string;
     expectedVersion: number;
     requestId: string;
@@ -572,6 +610,7 @@ function ArticleEditor({
         setBusy(true);
         setError("");
         const value = pending ?? {
+          ...(resource !== "articles" ? { resource } : {}),
           title,
           expectedVersion: article.version,
           requestId: crypto.randomUUID(),

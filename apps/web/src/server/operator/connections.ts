@@ -23,15 +23,22 @@ function connection(id: string) {
 function secret(row: Row) {
   return unseal(String(row.secret), `connection:${row.id}`);
 }
-function canWrite(row: Row) {
+function resolveResource(
+  manifest: ReturnType<typeof parseManifest>,
+  resourceId?: string,
+  capability: "list" | "update" = "list",
+) {
+  const target = resourceId
+    ? manifest.resources.find((r) => r.id === resourceId)
+    : (manifest.resources.find((r) => r.id === "articles" && r.capabilities.includes(capability)) ??
+      manifest.resources.find((r) => r.capabilities.includes(capability)));
+  if (!target?.capabilities.includes(capability)) return null;
+  return target;
+}
+function canWrite(row: Row, resourceId?: string) {
   if (row.kind !== "api") return false;
   const manifest = parseManifest(JSON.parse(String(row.manifest)));
-  return (
-    row.write_enabled === 1 &&
-    manifest.resources.some(
-      (resource) => resource.id === "articles" && resource.capabilities.includes("update"),
-    )
-  );
+  return row.write_enabled === 1 && Boolean(resolveResource(manifest, resourceId, "update"));
 }
 export function listConnections(raw: string | undefined, ip: string): Row[] {
   requireSession(raw, ip);
@@ -83,8 +90,8 @@ export async function addConnection(raw: string | undefined, input: Record<strin
       throw new Error("INCOMPATIBLE_CONNECTION");
     manifest = parseManifest(await remoteJson(url, "/manifest", credential));
     if (
-      !(manifest as { resources: { id: string; capabilities: string[] }[] }).resources.some(
-        (resource) => resource.id === "articles" && resource.capabilities.includes("list"),
+      !(manifest as { resources: { id: string; capabilities: string[] }[] }).resources.some((resource) =>
+        resource.capabilities.includes("list"),
       )
     )
       throw new Error("INCOMPATIBLE_CONNECTION");
@@ -137,11 +144,7 @@ export async function changeConnection(
   if (input.action === "enable-writes") {
     if (before.kind !== "api") throw new Error("INVALID_REQUEST");
     const live = parseManifest(await remoteJson(String(before.url), "/manifest", secret(before)));
-    if (
-      !live.resources.some(
-        (resource) => resource.id === "articles" && resource.capabilities.includes("update"),
-      )
-    )
+    if (!live.resources.some((resource) => resource.capabilities.includes("update")))
       throw new Error("REMOTE_READ_ONLY");
     manifest = JSON.stringify(live);
   }
@@ -186,12 +189,15 @@ function articles(value: Record<string, unknown>) {
     return { id: article.id, title: article.title, status: article.status, version: Number(article.version) };
   });
 }
-export async function readConnection(raw: string | undefined, id: string, ip: string) {
+export async function readConnection(raw: string | undefined, id: string, ip: string, resourceId?: string) {
   requireSession(raw, ip);
   const row = connection(id);
   if (row.kind !== "api") throw new Error("INVALID_REQUEST");
+  const parsed = parseManifest(JSON.parse(String(row.manifest)));
+  const target = resolveResource(parsed, resourceId, "list");
+  if (!target) throw new Error("INCOMPATIBLE_CONNECTION");
   try {
-    const value = articles(await remoteJson(String(row.url), "/articles", secret(row)));
+    const value = articles(await remoteJson(String(row.url), `/${target.id}`, secret(row)));
     requireSession(raw, ip);
     if (connection(id).revision !== row.revision) throw new Error("CONFLICT");
     const db = state();
@@ -205,7 +211,13 @@ export async function readConnection(raw: string | undefined, id: string, ip: st
     } finally {
       db.close();
     }
-    return { items: value, writeEnabled: canWrite(row), revision: row.revision };
+    return {
+      resource: target.id,
+      resources: parsed.resources,
+      items: value,
+      writeEnabled: canWrite(row, target.id),
+      revision: row.revision,
+    };
   } catch (error) {
     const db = state();
     try {
@@ -228,17 +240,23 @@ export async function updateArticle(
 ) {
   const session = requireSession(raw, ip);
   const row = connection(id);
-  if (!canWrite(row)) throw new Error("REMOTE_READ_ONLY");
+  const resourceId = typeof input.resource === "string" && input.resource ? input.resource : undefined;
+  const parsedManifest = parseManifest(JSON.parse(String(row.manifest)));
+  const target = resolveResource(parsedManifest, resourceId, "update");
+  if (!canWrite(row, resourceId) || !target) throw new Error("REMOTE_READ_ONLY");
   if (input.connectionRevision !== row.revision || !/^[a-zA-Z0-9_-]{1,80}$/.test(article))
     throw new Error("CONFLICT");
   const parsed = articleUpdateSchema.safeParse({
     title: input.title,
+    ...(typeof input.status === "string" && input.status ? { status: input.status } : {}),
     expectedVersion: input.expectedVersion,
     idempotencyKey: input.requestId,
   });
   if (!parsed.success) throw new Error("INVALID_REQUEST");
   const body = parsed.data;
-  const payloadHash = digest(JSON.stringify({ connection: id, article, revision: row.revision, body }));
+  const payloadHash = digest(
+    JSON.stringify({ connection: id, resource: target.id, article, revision: row.revision, body }),
+  );
   let existing: Row | undefined;
   const reader = state();
   try {
@@ -290,7 +308,7 @@ export async function updateArticle(
           JSON.stringify(body),
           payloadHash,
           id,
-          "articles",
+          target.id,
           "pending",
           now(),
         );
@@ -302,7 +320,7 @@ export async function updateArticle(
   requireSession(raw, ip);
   if (connection(id).revision !== row.revision) throw new Error("CONFLICT");
   try {
-    const result = await remoteJson(String(row.url), `/articles/${article}`, secret(row), "PATCH", body);
+    const result = await remoteJson(String(row.url), `/${target.id}/${article}`, secret(row), "PATCH", body);
     if (
       result.ok !== true ||
       result.idempotencyKey !== body.idempotencyKey ||

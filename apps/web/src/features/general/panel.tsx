@@ -48,6 +48,8 @@ type Connection = {
   checked_at: string | null;
 };
 type Articles = {
+  resource?: string;
+  resources?: { id: string; name: string; capabilities: string[] }[];
   items: { id: string; title: string; status: string; version: number }[];
   revision: string;
   writeEnabled: boolean;
@@ -77,7 +79,7 @@ const auditLabels: Record<string, string> = {
   "connection.write.unknown": "Article change result uncertain",
 };
 
-export function GeneralPanel({ basePath }: { basePath: string }) {
+export function GeneralPanel({ basePath, operatorHub = false }: { basePath: string; operatorHub?: boolean }) {
   const { t } = useLocale();
   const [csrf, setCsrf] = useState("");
   const [authenticated, setAuthenticated] = useState(false);
@@ -330,7 +332,10 @@ export function GeneralPanel({ basePath }: { basePath: string }) {
           <strong>OpenHubPanel</strong>
           <p>{t("Team workspaces")}</p>
         </div>
-        <LanguageSelector />
+        <div className="general-toolbar">
+          {operatorHub && <a href={`${basePath}/live`}>{t("Live workspace")}</a>}
+          <LanguageSelector />
+        </div>
       </header>
       <main>
         <h1>{t(authenticated ? "Your workspaces" : "Workspace sign-in")}</h1>
@@ -859,6 +864,34 @@ export function GeneralPanel({ basePath }: { basePath: string }) {
                 {articles && (
                   <section>
                     <h3>{t("Articles")}</h3>
+                    {articles.data.resources && articles.data.resources.length > 1 && (
+                      <div className="general-toolbar">
+                        <label htmlFor="connection-resource">{t("Resources")}</label>
+                        <select
+                          id="connection-resource"
+                          value={articles.data.resource ?? "articles"}
+                          disabled={busy}
+                          onChange={(event) => {
+                            const nextResource = event.target.value;
+                            const connId = articles.connection;
+                            void run(async () => {
+                              setArticles({
+                                connection: connId,
+                                data: await api<Articles>(
+                                  `connections/${connId}/articles?workspace=${workspace}&resource=${encodeURIComponent(nextResource)}`,
+                                ),
+                              });
+                            });
+                          }}
+                        >
+                          {articles.data.resources.map((res) => (
+                            <option key={res.id} value={res.id}>
+                              {res.name}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                    )}
                     {!articles.data.items.length && <p>{t("No articles found.")}</p>}
                     {articles.data.items.map((item) => (
                       <article key={item.id}>
@@ -876,6 +909,9 @@ export function GeneralPanel({ basePath }: { basePath: string }) {
                             run={(input) => {
                               const payload = {
                                 ...input,
+                                ...(articles.data.resource && articles.data.resource !== "articles"
+                                  ? { resource: articles.data.resource }
+                                  : {}),
                                 id: articles.connection,
                                 article: item.id,
                                 expectedVersion: item.version,

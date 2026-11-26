@@ -8,13 +8,16 @@ if (token.length < 32) throw new Error("API_TOKEN must have at least 32 random c
 const filename = process.env.DATA_FILE ?? path.resolve("content-example.sqlite");
 const db = new DatabaseSync(filename);
 db.exec(
-  "PRAGMA journal_mode=WAL;CREATE TABLE IF NOT EXISTS articles(id TEXT PRIMARY KEY,title TEXT NOT NULL,status TEXT NOT NULL,version INTEGER NOT NULL);CREATE TABLE IF NOT EXISTS operations(id TEXT PRIMARY KEY,hash TEXT NOT NULL,result TEXT NOT NULL);CREATE TABLE IF NOT EXISTS audit(id INTEGER PRIMARY KEY,time TEXT NOT NULL,article TEXT NOT NULL,operation TEXT NOT NULL);INSERT OR IGNORE INTO articles VALUES('welcome','Welcome to your connected application','published',1)",
+  "PRAGMA journal_mode=WAL;CREATE TABLE IF NOT EXISTS articles(id TEXT PRIMARY KEY,title TEXT NOT NULL,status TEXT NOT NULL,version INTEGER NOT NULL);CREATE TABLE IF NOT EXISTS pages(id TEXT PRIMARY KEY,title TEXT NOT NULL,status TEXT NOT NULL,version INTEGER NOT NULL);CREATE TABLE IF NOT EXISTS operations(id TEXT PRIMARY KEY,hash TEXT NOT NULL,result TEXT NOT NULL);CREATE TABLE IF NOT EXISTS audit(id INTEGER PRIMARY KEY,time TEXT NOT NULL,article TEXT NOT NULL,operation TEXT NOT NULL);INSERT OR IGNORE INTO articles VALUES('welcome','Welcome to your connected application','published',1);INSERT OR IGNORE INTO pages VALUES('home','Company home page','published',1)",
 );
 const manifest = {
   id: "node-content-example",
   name: "Node content example",
   contractVersion: "1.0",
-  resources: [{ id: "articles", name: "Articles", capabilities: ["list", "read", "update"] }],
+  resources: [
+    { id: "articles", name: "Articles", capabilities: ["list", "read", "update"] },
+    { id: "pages", name: "Pages", capabilities: ["list", "read", "update"] },
+  ],
 };
 const reply = (res, code, data) => {
   if (data.error)
@@ -40,16 +43,19 @@ const server = createServer(async (req, res) => {
   if (req.method === "GET" && route === "/manifest") return reply(res, 200, manifest);
   if (req.method === "GET" && route === "/articles")
     return reply(res, 200, { items: db.prepare("SELECT * FROM articles ORDER BY id LIMIT 100").all() });
+  if (req.method === "GET" && route === "/pages")
+    return reply(res, 200, { items: db.prepare("SELECT * FROM pages ORDER BY id LIMIT 100").all() });
   const operation = /^\/operations\/([a-f0-9-]{36})$/.exec(route);
   if (req.method === "GET" && operation) {
     const row = db.prepare("SELECT result FROM operations WHERE id=?").get(operation[1]);
     return row ? reply(res, 200, JSON.parse(row.result)) : reply(res, 404, { error: { code: "NOT_FOUND" } });
   }
-  const target = /^\/articles\/([a-zA-Z0-9_-]{1,80})$/.exec(route);
+  const target = /^\/(articles|pages)\/([a-zA-Z0-9_-]{1,80})$/.exec(route);
   if (!target) return reply(res, 404, { error: { code: "NOT_FOUND" } });
-  const id = target[1];
+  const table = target[1] === "pages" ? "pages" : "articles";
+  const id = target[2];
   if (req.method === "GET") {
-    const row = db.prepare("SELECT * FROM articles WHERE id=?").get(id);
+    const row = db.prepare(`SELECT * FROM ${table} WHERE id=?`).get(id);
     return row ? reply(res, 200, row) : reply(res, 404, { error: { code: "NOT_FOUND" } });
   }
   if (req.method !== "PATCH") return reply(res, 405, { error: { code: "METHOD_NOT_ALLOWED" } });
@@ -60,11 +66,15 @@ const server = createServer(async (req, res) => {
       if (Buffer.byteLength(body) > 8192) return reply(res, 413, { error: { code: "TOO_LARGE" } });
     }
     const input = JSON.parse(body);
+    const keys = Object.keys(input).sort().join(",");
     if (
-      Object.keys(input).sort().join(",") !== "expectedVersion,idempotencyKey,title" ||
+      (keys !== "expectedVersion,idempotencyKey,title" &&
+        keys !== "expectedVersion,idempotencyKey,status,title") ||
       typeof input.title !== "string" ||
       !input.title.trim() ||
       input.title.length > 180 ||
+      (input.status !== undefined &&
+        (typeof input.status !== "string" || !input.status.trim() || input.status.length > 50)) ||
       !Number.isInteger(input.expectedVersion) ||
       input.expectedVersion < 1 ||
       !/^[a-f0-9-]{36}$/.test(input.idempotencyKey)
@@ -73,8 +83,10 @@ const server = createServer(async (req, res) => {
     const hash = createHash("sha256")
       .update(
         JSON.stringify({
+          table,
           id,
           title: input.title.trim(),
+          ...(input.status ? { status: input.status.trim() } : {}),
           expectedVersion: input.expectedVersion,
           idempotencyKey: input.idempotencyKey,
         }),
@@ -89,9 +101,17 @@ const server = createServer(async (req, res) => {
           ? reply(res, 200, JSON.parse(prior.result))
           : reply(res, 409, { error: { code: "CONFLICT" } });
       }
-      const updated = db
-        .prepare("UPDATE articles SET title=?,version=version+1 WHERE id=? AND version=? RETURNING version")
-        .get(input.title.trim(), id, input.expectedVersion);
+      const updated = input.status
+        ? db
+            .prepare(
+              `UPDATE ${table} SET title=?,status=?,version=version+1 WHERE id=? AND version=? RETURNING version`,
+            )
+            .get(input.title.trim(), input.status.trim(), id, input.expectedVersion)
+        : db
+            .prepare(
+              `UPDATE ${table} SET title=?,version=version+1 WHERE id=? AND version=? RETURNING version`,
+            )
+            .get(input.title.trim(), id, input.expectedVersion);
       if (!updated) {
         db.exec("ROLLBACK");
         return reply(res, 409, { error: { code: "CONFLICT" } });

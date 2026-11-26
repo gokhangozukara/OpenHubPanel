@@ -101,11 +101,13 @@ export async function GET(request: Request, context: RouteContext<"/api/general/
       }
     }
     const raw = jar.get(names.session)?.value ?? "";
-    const workspace = new URL(request.url).searchParams.get("workspace") ?? "";
+    const searchParams = new URL(request.url).searchParams;
+    const workspace = searchParams.get("workspace") ?? "";
+    const resource = searchParams.get("resource") ?? undefined;
     if (path.join("/") === "workspace") return json(await services.workspaces.snapshot(raw, workspace));
     if (path.join("/") === "connections") return json(await services.connections.list(raw, workspace));
-    if (path.length === 3 && path[0] === "connections" && path[2] === "articles")
-      return json(await services.connections.read(raw, workspace, path[1] ?? ""));
+    if (path.length === 3 && path[0] === "connections" && (path[2] === "articles" || path[2] === "resources"))
+      return json(await services.connections.read(raw, workspace, path[1] ?? "", resource));
     return json({ error: "NOT_FOUND" }, 404);
   } catch (error) {
     return rejected(error);
@@ -258,7 +260,9 @@ async function post(request: Request, context: RouteContext<"/api/general/[...pa
       if (!Number.isSafeInteger(input.expectedVersion)) throw new Error("INVALID_INPUT");
       return json(
         await connections.update(raw, workspace, str("id"), str("article"), {
+          ...(typeof input.resource === "string" && input.resource ? { resource: input.resource } : {}),
           title: str("title"),
+          ...(typeof input.status === "string" && input.status ? { status: input.status } : {}),
           expectedVersion: Number(input.expectedVersion),
           idempotencyKey: str("idempotencyKey"),
           revision: str("revision"),

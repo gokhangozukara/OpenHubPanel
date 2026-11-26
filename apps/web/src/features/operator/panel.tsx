@@ -77,11 +77,13 @@ export function LivePanel({
   mfaEnabled,
   applications,
   basePath,
+  workspaceHub = false,
 }: {
   email: string | null;
   mfaEnabled: boolean;
   applications: PilotApplication[];
   basePath: string;
+  workspaceHub?: boolean;
 }) {
   const { t } = useLocale();
   const [csrf, setCsrf] = useState("");
@@ -260,6 +262,11 @@ export function LivePanel({
         <header className="pilot-topbar">
           <span>OpenHubPanel</span>
           <div className="owner-identity">
+            {workspaceHub && (
+              <a className="button secondary" href={`${basePath}/workspace`}>
+                {t("Team workspaces")}
+              </a>
+            )}
             <span className="muted small">{email}</span>
             <LanguageSelector />
             <button

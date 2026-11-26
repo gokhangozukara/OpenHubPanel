@@ -44,9 +44,12 @@ export type ConnectorManifest = z.infer<typeof connectorManifestSchema>;
 
 export const articleUpdateSchema = z.strictObject({
   title: z.string().trim().min(1).max(180),
+  status: z.string().trim().min(1).max(50).optional(),
   expectedVersion: z.number().int().positive(),
   idempotencyKey: z.uuid(),
 });
+export const resourceRecordUpdateSchema = articleUpdateSchema;
+export type ResourceRecordUpdate = z.infer<typeof resourceRecordUpdateSchema>;
 
 export const errorResponseSchema = z.strictObject({
   error: z.strictObject({ code: z.string(), message: z.string(), requestId: z.uuid() }),

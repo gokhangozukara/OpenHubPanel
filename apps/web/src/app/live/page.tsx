@@ -1,6 +1,7 @@
 import { cookies, headers } from "next/headers";
 import { notFound } from "next/navigation";
 import { LivePanel } from "@/features/operator/panel";
+import { generalEnabled } from "@/server/general/runtime";
 import { clientIp } from "@/server/operator/access";
 import { requireSession, sessionCookie } from "@/server/operator/auth";
 import { readOperatorCatalog } from "@/server/operator/connector";
@@ -26,6 +27,7 @@ export default async function LivePage() {
       mfaEnabled={mfaEnabled}
       applications={email ? await readOperatorCatalog() : []}
       basePath={process.env.OPENHUB_BASE_PATH ?? ""}
+      workspaceHub={generalEnabled()}
     />
   );
 }

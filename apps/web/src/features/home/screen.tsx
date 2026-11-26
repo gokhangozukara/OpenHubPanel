@@ -3,7 +3,15 @@ import { ArrowRight, Blocks, Code2, ShieldCheck } from "lucide-react";
 import Link from "next/link";
 import { LanguageSelector, useLocale } from "@/i18n/provider";
 
-export function HomeScreen({ preview }: { preview: boolean }) {
+export function HomeScreen({
+  preview,
+  general = false,
+  operator = false,
+}: {
+  preview: boolean;
+  general?: boolean;
+  operator?: boolean;
+}) {
   const { t } = useLocale();
   return (
     <main className="welcome-page">
@@ -20,6 +28,16 @@ export function HomeScreen({ preview }: { preview: boolean }) {
           {t("One home for managing them all.")}
         </p>
         <div className="welcome-actions">
+          {general && (
+            <Link href="/workspace" className="button primary">
+              {t("Team workspaces")} <ArrowRight size={16} />
+            </Link>
+          )}
+          {operator && (
+            <Link href="/live" className="button secondary">
+              {t("Live workspace")} <ArrowRight size={16} />
+            </Link>
+          )}
           {preview && (
             <Link href="/preview" className="button primary">
               {t("Explore the panel")} <ArrowRight size={16} />

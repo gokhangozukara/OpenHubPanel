@@ -9,11 +9,13 @@ type Context = { params: Promise<{ id: string }> };
 export async function GET(request: Request, context: Context) {
   if (!enabled()) return new Response(null, { status: 404 });
   try {
+    const resource = new URL(request.url).searchParams.get("resource") ?? undefined;
     return Response.json(
       await readConnection(
         (await cookies()).get(sessionCookie)?.value,
         (await context.params).id,
         clientIp(request.headers),
+        resource,
       ),
       { headers: privateHeaders },
     );

@@ -10,14 +10,21 @@ type Transport = typeof remoteJson;
 type Row = Record<string, unknown>;
 function manifest(value: unknown) {
   const parsed = connectorManifestSchema.safeParse(value);
-  if (
-    !parsed.success ||
-    !parsed.data.resources.some(
-      (resource) => resource.id === "articles" && resource.capabilities.includes("list"),
-    )
-  )
+  if (!parsed.success || !parsed.data.resources.some((resource) => resource.capabilities.includes("list")))
     throw new Error("INCOMPATIBLE_CONNECTION");
   return parsed.data;
+}
+function resolveResource(
+  parsed: ReturnType<typeof manifest>,
+  resourceId?: string,
+  capability: "list" | "update" = "list",
+) {
+  const target = resourceId
+    ? parsed.resources.find((r) => r.id === resourceId)
+    : (parsed.resources.find((r) => r.id === "articles" && r.capabilities.includes(capability)) ??
+      parsed.resources.find((r) => r.capabilities.includes(capability)));
+  if (!target?.capabilities.includes(capability)) return null;
+  return target;
 }
 function article(value: unknown) {
   if (!value || typeof value !== "object") throw new Error("INCOMPATIBLE_CONNECTION");
@@ -50,11 +57,8 @@ export function generalConnections(db: Database, key: string, transport: Transpo
     if (revision && rows[0].revision !== revision) throw new Error("CONFLICT");
     return rows[0];
   }
-  const writes = (row: Row) =>
-    row.write_enabled &&
-    manifest(row.manifest).resources.some(
-      (resource) => resource.id === "articles" && resource.capabilities.includes("update"),
-    );
+  const writes = (row: Row, resourceId?: string) =>
+    Boolean(row.write_enabled) && Boolean(resolveResource(manifest(row.manifest), resourceId, "update"));
   async function checked(row: Row, workspace: string) {
     const credential = secret(workspace, row);
     const health = await transport(String(row.url), "/health", credential);
@@ -154,9 +158,7 @@ export function generalConnections(db: Database, key: string, transport: Transpo
         const live = action === "enable-writes" ? await checked(row, workspace) : row.manifest;
         if (
           action === "enable-writes" &&
-          !manifest(live).resources.some(
-            (resource) => resource.id === "articles" && resource.capabilities.includes("update"),
-          )
+          !manifest(live).resources.some((resource) => resource.capabilities.includes("update"))
         )
           throw new Error("REMOTE_READ_ONLY");
         await tx`UPDATE workspace_connections SET disabled=${action === "disable"},write_enabled=${action === "enable-writes"},
@@ -165,19 +167,23 @@ export function generalConnections(db: Database, key: string, transport: Transpo
         return { remoteKeyRevocationRequired: action === "disable" };
       });
     },
-    async read(session: string, workspace: string, id: string) {
+    async read(session: string, workspace: string, id: string, resourceId?: string) {
       return workspaces.scoped(session, workspace, "content.read", async (tx) => {
         const row = await connection(tx, workspace, id);
-        manifest(row.manifest);
+        const parsed = manifest(row.manifest);
+        const target = resolveResource(parsed, resourceId, "list");
+        if (!target) throw new Error("INCOMPATIBLE_CONNECTION");
         const credential = secret(workspace, row);
-        const data = await transport(String(row.url), "/articles", credential);
+        const data = await transport(String(row.url), `/${target.id}`, credential);
         if (!Array.isArray(data.items) || data.items.length > 100) throw new Error("INCOMPATIBLE_CONNECTION");
         const items = data.items.map(article);
         if (JSON.stringify(items).includes(credential)) throw new Error("INCOMPATIBLE_CONNECTION");
         return {
+          resource: target.id,
+          resources: parsed.resources,
           items,
           revision: String(row.revision),
-          writeEnabled: Boolean(writes(row)),
+          writeEnabled: Boolean(writes(row, target.id)),
         };
       });
     },
@@ -187,7 +193,9 @@ export function generalConnections(db: Database, key: string, transport: Transpo
       id: string,
       articleId: string,
       input: {
+        resource?: string;
         title: string;
+        status?: string;
         expectedVersion: number;
         idempotencyKey: string;
         revision: string;
@@ -195,15 +203,21 @@ export function generalConnections(db: Database, key: string, transport: Transpo
       },
     ) {
       if (!/^[a-zA-Z0-9_-]{1,80}$/.test(articleId)) throw new Error("INVALID_INPUT");
+      if (input.resource !== undefined && !/^[a-z][a-z0-9-]{1,63}$/.test(input.resource))
+        throw new Error("INVALID_INPUT");
       const body = articleUpdateSchema.parse({
         title: input.title,
+        ...(input.status ? { status: input.status } : {}),
         expectedVersion: input.expectedVersion,
         idempotencyKey: input.idempotencyKey,
       });
-      const payloadHash = digest(JSON.stringify({ articleId, revision: input.revision, body }));
+      const payloadHash = digest(
+        JSON.stringify({ resource: input.resource ?? "articles", articleId, revision: input.revision, body }),
+      );
       const prepared = await workspaces.scoped(session, workspace, "content.write", async (tx, identity) => {
         const row = await connection(tx, workspace, id, input.revision);
-        if (!writes(row)) throw new Error("REMOTE_READ_ONLY");
+        const target = resolveResource(manifest(row.manifest), input.resource, "update");
+        if (!row.write_enabled || !target) throw new Error("REMOTE_READ_ONLY");
         const operations =
           await tx`SELECT * FROM connection_operations WHERE workspace_id=${workspace} AND connection_id=${id} AND id=${body.idempotencyKey}`;
         const previous = operations[0];
@@ -214,14 +228,14 @@ export function generalConnections(db: Database, key: string, transport: Transpo
             previous.payload_hash !== payloadHash
           )
             throw new Error("CONFLICT");
-          return { row, previous, remoteKey: String(previous.remote_key) };
+          return { row, target, previous, remoteKey: String(previous.remote_key) };
         }
         await auth.stepUp(tx, identity, input.code);
         const remoteKey = randomUUID();
         await tx`INSERT INTO connection_operations(workspace_id,connection_id,id,remote_key,actor_id,session_hash,payload_hash,state)
           VALUES(${workspace},${id},${body.idempotencyKey},${remoteKey},${identity.userId},${identity.sessionHash},${payloadHash},'pending')`;
         await audit(tx, identity, workspace, "connection.write.intent", `${id}/${body.idempotencyKey}`);
-        return { row, previous: undefined, remoteKey };
+        return { row, target, previous: undefined, remoteKey };
       });
       if (prepared.previous?.state === "completed")
         return prepared.previous.result as { ok: boolean; version: number };
@@ -253,7 +267,7 @@ export function generalConnections(db: Database, key: string, transport: Transpo
       }
       await workspaces.scoped(session, workspace, "content.write", async (tx, identity) => {
         const current = await connection(tx, workspace, id, input.revision);
-        if (!writes(current)) throw new Error("REMOTE_READ_ONLY");
+        if (!writes(current, prepared.target.id)) throw new Error("REMOTE_READ_ONLY");
         await tx`UPDATE connection_operations SET state='dispatched' WHERE workspace_id=${workspace} AND connection_id=${id} AND id=${body.idempotencyKey}`;
         await audit(tx, identity, workspace, "connection.write.dispatched", `${id}/${body.idempotencyKey}`);
       });
@@ -261,7 +275,7 @@ export function generalConnections(db: Database, key: string, transport: Transpo
         const result = validate(
           await transport(
             String(prepared.row.url),
-            `/articles/${articleId}`,
+            `/${prepared.target.id}/${articleId}`,
             secret(workspace, prepared.row),
             "PATCH",
             { ...body, idempotencyKey: prepared.remoteKey },

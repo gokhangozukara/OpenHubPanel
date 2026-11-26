@@ -8,8 +8,16 @@ describe("connector trust boundary", () => {
     contractVersion: "1.0",
     resources: [{ id: "articles", name: "Articles", capabilities: ["list", "read"] }],
   };
-  it("accepts a supported declarative contract", () => {
+  it("accepts a supported declarative contract with one or more resources", () => {
     expect(connectorManifestSchema.parse(manifest).resources[0]?.id).toBe("articles");
+    const multi = {
+      ...manifest,
+      resources: [
+        { id: "articles", name: "Articles", capabilities: ["list", "read", "update"] },
+        { id: "pages", name: "Pages", capabilities: ["list", "read", "update"] },
+      ],
+    };
+    expect(connectorManifestSchema.parse(multi).resources).toHaveLength(2);
   });
   it.each([{ baseUrl: "http://169.254.169.254" }, { script: "fetch('/secrets')" }, { token: "secret" }])(
     "rejects executable code, credentials and network targets in a manifest",
