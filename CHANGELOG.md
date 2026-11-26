@@ -3,6 +3,7 @@
 ## v0.1.0
 
 ### Added
+
 - **Multi-user workspaces (`/workspace`):** PostgreSQL-backed accounts with Argon2id passwords, mandatory TOTP enrollment, recovery codes, revocable server sessions, and opt-in 30-day trusted browsers (migration `0005`).
 - **Workspace management & RBAC:** Scoped workspaces, four roles, team members, copyable invitation links, ownership transfer, and PostgreSQL row-level security (`FORCE RLS`).
 - **Applications & encrypted API connections:** Workspace-scoped application registration, encrypted connection credentials, read-only defaults, durable write intents, version checks, idempotent reconciliation, and audited writes.
