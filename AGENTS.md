@@ -6,7 +6,7 @@ Read [README.md](README.md), [PROJECT_STATUS.md](PROJECT_STATUS.md), and the rel
 
 - Use English for directory names, filenames, identifiers, comments, documentation, issues, pull requests, and commit messages. Use descriptive names that explain purpose.
 - The product and repository name is **OpenHubPanel**. The interface supports English, Turkish, and German. Translated text belongs in `apps/web/src/i18n/locales/`; keep implementation code in English.
-- Keep the repository private until the owner explicitly requests public visibility. Source changes do not authorize opening the repository.
+- The repository is public under MIT; keep private deployment details, credentials, and personal data strictly out of Git.
 - Write original application code, components, styles, and workflows. Do not copy local reference panels into the product or reproduce screens verbatim.
 - Open-source dependencies are welcome. Pin versions, record licenses, and preserve required notices.
 - Never commit credentials, private deployment details, runtime environment files, backups, or local research copies. `.local/`, `reference-panels/`, and `*.local.md` stay excluded from Git and Docker.

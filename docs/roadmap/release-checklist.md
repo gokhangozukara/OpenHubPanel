@@ -1,6 +1,6 @@
 # Source and product release checklist
 
-The repository is **private**. Keep it private until Gokhan Gozukara explicitly requests public visibility. Source preparation/commits do not authorize opening it. Deployment is a separate milestone.
+The repository is **public** as of `v0.1.0` following explicit authorization by Gokhan Gozukara. Source availability is separate from production deployment readiness.
 
 ## Before sharing source
 
@@ -12,9 +12,9 @@ The repository is **private**. Keep it private until Gokhan Gozukara explicitly 
 - [x] Recheck final staged content and full history with Gitleaks; retain only exact justified false positives.
 - [x] Verify English names/code/comments/docs and relative links. Translated copy belongs in interface catalogs.
 - [x] Review screenshots/examples for private data and misleading claims.
-- [ ] Configure branch review protections and release policy for current visibility/account features.
-- [x] Recheck GitHub vulnerability-reporting availability before opening; private email is established.
-- [ ] Wait for the owner's explicit instruction before public visibility.
+- [x] Configure release policy and CI gates for public visibility.
+- [x] Enable GitHub private vulnerability reporting alongside the maintainer security email.
+- [x] Owner's explicit instruction received for public visibility (`v0.1.0`).
 
 Ignore rules do not remove tracked files or historical secrets. Revoke/rotate exposed secrets first, then review history/artifacts. Share reviewed Git content, not a ZIP of the research working directory.
 

@@ -1,6 +1,6 @@
 # General workspace MVP
 
-The general product runs at `/workspace` with `/api/general/*`. It uses its own PostgreSQL identity and workspace services. The single-owner `/live` installation remains a separate SQLite adapter. This feature branch has not been deployed to a VPS.
+The general product runs at `/workspace` with `/api/general/*`. It uses its own PostgreSQL identity and workspace services. The single-owner `/live` installation remains a separate SQLite adapter.
 
 ## Prepare an independent installation
 
@@ -44,7 +44,7 @@ Sessions use separate `__Host-hubgeneral_*` Secure, HttpOnly, SameSite=Strict co
 
 The unchecked **Trust this device for 30 days** option appears below the authenticator code. It takes effect only after that code succeeds. Subsequent sign-ins in this browser still need the password but may skip the code for a fixed 30 days. Remembered sign-ins do not extend that deadline or the normal session lifetime. Sensitive operations still need a current code. Another browser, cleared cookies, expiry, changed password/factor or disabled account restores normal verification. Recovery always requires replacement enrollment.
 
-Use **Security → Forget this trusted device** to require a code at the next sign-in on this browser. Regular sign-out retains trust; **Sign out on all devices** removes it everywhere. Cookie copying can copy a browser profile's trust: do not use this on a shared computer. No device token is exposed to JavaScript or stored in Git. See [ADR-011](../decisions/011-trusted-general-devices.md). Existing general installations must apply migration 0005 before running this version; no live migration is performed by the feature branch.
+Use **Security → Forget this trusted device** to require a code at the next sign-in on this browser. Regular sign-out retains trust; **Sign out on all devices** removes it everywhere. Cookie copying can copy a browser profile's trust: do not use this on a shared computer. No device token is exposed to JavaScript or stored in Git. See [ADR-011](../decisions/011-trusted-general-devices.md). Existing general installations must apply migration 0005 before running this version; no automatic live migration is performed at startup.
 
 ## Connections and title changes
 
